@@ -25,7 +25,7 @@ class Vocabulary:
 
     def tokenize(self, sentence: str):
         """ Split on all tokens and punctuation and adds BOS and EOS token """
-        return [self.BOS] + re.findall(r'\w+|[^\s\w]+', sentence) + [self.EOS]
+        return [self.BOS] + re.findall(r"\w+|[^\s\w]+", sentence) + [self.EOS]
 
     def encode(self, sentence: str):
         """ Converts a sentence to a list of token indices in the vocabulary """
@@ -40,16 +40,47 @@ class TestVocabulary(unittest.TestCase):
         input_sequence = "Hello my name is Joris and I was born with the name Joris."
         output = Vocabulary([]).tokenize(input_sequence)
         self.assertEqual(
-            ["BOS", "Hello", "my", "name", "is", "Joris", "and", "I", "was", "born", "with", "the", "name", "Joris",
-             ".", "EOS"],
-            output
+            [
+                "BOS",
+                "Hello",
+                "my",
+                "name",
+                "is",
+                "Joris",
+                "and",
+                "I",
+                "was",
+                "born",
+                "with",
+                "the",
+                "name",
+                "Joris",
+                ".",
+                "EOS",
+            ],
+            output,
         )
 
     def test_init_vocab(self):
         input_sentences = ["Hello my name is Joris and I was born with the name Joris."]
         vocab = Vocabulary(input_sentences)
-        expected = {"BOS": 0, "EOS": 1, "PAD": 2, "Hello": 3, "my": 4, "name": 5, "is": 6, "Joris": 7, "and": 8, "I": 9,
-                    "was": 10, "born": 11, "with": 12, "the": 13, ".": 14}
+        expected = {
+            "BOS": 0,
+            "EOS": 1,
+            "PAD": 2,
+            "Hello": 3,
+            "my": 4,
+            "name": 5,
+            "is": 6,
+            "Joris": 7,
+            "and": 8,
+            "I": 9,
+            "was": 10,
+            "born": 11,
+            "with": 12,
+            "the": 13,
+            ".": 14,
+        }
         self.assertEqual(vocab.token2index, expected)
 
     def test_encode(self):

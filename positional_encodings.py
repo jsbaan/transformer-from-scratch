@@ -125,7 +125,7 @@ class TestSinusoidEncoding(unittest.TestCase):
                         2.0000e-03,
                         1.0000e00,
                     ],
-                ]
+                ],
             ]
         )
         torch.testing.assert_close(encoding, expected, rtol=10e-5, atol=10e-5)
