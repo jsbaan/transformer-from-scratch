@@ -19,10 +19,12 @@ WORK IN PROGRESS!
 ## To do:
 - Finish TransformerDecoder implementation: cross & self-attention
 - Decoder & Transformer main class unit tests
-- GPU support
 - Attention mask for pad tokens and decoder self-attention
 - Divide embedding weights by sqrt(hidden_dim // num_heads)
 - Training loop, optimizer & settings etc.
+
+#### Bonus
+- GPU support
 - Run unit tests on each commit using Github Actions
 - Add requirements.txt
 - Publish this repo
