@@ -4,9 +4,9 @@ described in [Attention Is All You Need](https://arxiv.org/abs/1706.03762).
 
 WORK IN PROGRESS!
 
-Features:
-- The simplest possible tokenizer
-- The simplest possible vocabulary
+## Features:
+- The simplest imaginable Vocabulary class
+- The simplest imaginable tokenize method
 - TransformerEncoder class
 - TransformerDecoder class
 - Transformer class
@@ -14,9 +14,21 @@ Features:
 - SinusoidEncoding class
 - Simple unit tests for each class
 - Code formatted using [black](https://github.com/psf/black)
+- Python 3.9, PyTorch 1.9.1
+
+## To do:
+- Finish TransformerDecoder implementation: cross & self-attention
+- Decoder & Transformer main class unit tests
+- GPU support
+- Attention mask for pad tokens and decoder self-attention
+- Divide embedding weights by sqrt(hidden_dim // num_heads)
+- Training loop, optimizer & settings etc.
+- Run unit tests on each commit using Github Actions
+- Add requirements.txt
+- Publish this repo
 
 ## Implementation Notes
-- The query, key and value vector dim is dynamically set to hidden_dim/num_heads.
+- The query, key and value vector dim is dynamically set to hidden_dim/num_heads in most (e.g. PyTorch & huggingface) implementations.
 - Multi-head attention is parameterized by one linear layer. For example, say the input is of dim(1, 10, 512), then W_proj_qkv has dim(512, 3*512). This results in
 3 times 512 linear combinations of each row in x. We can further interpret each block of 512 as 8 blocks of 64 that represent the “heads”.
 - Vanilla transformers can handle arbitrary length inputs in theory. [In practice](https://ai.googleblog.com/2021/03/constructing-transformers-for-longer.html#:~:text=With%20commonly%20available%20current%20hardware,summarization%20or%20genome%20fragment%20classification.), however, self-attention has compute and memory requirements that limit the input sequence to ~512 tokens. Models like BERT do impose a hard length limit because they use learned embeddings instead of the sinusoid encoding, which stop existing after a certain length (512).

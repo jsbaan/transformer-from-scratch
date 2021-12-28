@@ -6,7 +6,7 @@ import unittest
 
 class MultiHeadAttention(nn.Module):
     """
-    Cheated with
+    Cheated by looking at
     https://uvadlc-notebooks.readthedocs.io/en/latest/tutorial_notebooks/tutorial6/Transformers_and_MHAttention.html.
     To allow for arbitrary inputs, an additional param input_dim could be passed.
     """
