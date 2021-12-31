@@ -1,6 +1,7 @@
-# Custom implementation of Vanilla Transformers
-As an exercise I implemented the vanilla encoder-decoder transformer 
-described in [Attention Is All You Need](https://arxiv.org/abs/1706.03762) without any dependencies except PyTorch. 
+
+# Implementing A Transformer From Scratch
+To get intimately familiar with the nuts and bolts of transformers, I implemented a bare-bone version of the original transformer 
+proposed in [Attention Is All You Need](https://arxiv.org/abs/1706.03762). No dependencies except PyTorch. 
 
 WORK IN PROGRESS!
 
@@ -18,8 +19,8 @@ WORK IN PROGRESS!
 
 ## To do:
 - Finish TransformerDecoder implementation: cross & self-attention
+  - Implement attention mask for pad tokens and decoder self-attention
 - Decoder & Transformer main class unit tests
-- Attention mask for pad tokens and decoder self-attention
 - Divide embedding weights by sqrt(hidden_dim // num_heads)
 - Training loop, optimizer & settings etc.
   - Check whether BOS and EOS tokens should be added to each training sentence; remove this from the vocab class if not.
@@ -30,7 +31,7 @@ WORK IN PROGRESS!
 - Run unit tests on each commit using Github Actions 
   - Refactor unit tests to separate folder and files
   - Run pylint on codebase
-- Publish this repo and write blogpost about what I learned / what surprised me.
+- Publish this repo and write blogpost about what I learned / what surprised me (notes below).
 
 ## Lessons Learned / Implementation Notes
 - The query, key and value vector dim is dynamically set to hidden_dim/num_heads in most (e.g. PyTorch & huggingface) default implementations <include source>.
@@ -41,9 +42,10 @@ WORK IN PROGRESS!
 - Positional encodings add different sine (even dims) or cosine (uneven dims) waves to each dimension that "flow across" tokens
 - The embedding weights are shared between encoder and decoder, and its transpose is used as the pre-softmax linear transformation to reduce overfitting (?) and # params. <todo: why>?
 - The final/last/top hidden state that corresponds to the decoder’s last input token is used to predict the next token: it's used as input to the above linear transformation that produces logits (an unnormalized distribution) over the vocabulary. The other hidden states seem to be simply discarded?
-- The embedding weights are divided by sqrt(hidden_dim // num_heads). <todo: why?> 
+- The embedding weights are divided by sqrt(hidden_dim // num_heads). <todo: why?>
+- The hidden representations ("residual stream") are actually quite similar to the cell state in LSTMs. Read in Anthropic's [recent publication](https://transformer-circuits.pub/2021/framework/index.html) about reverse engineering a transformer.
 
 ## References
-- For positional encodings and the MHA implementations looked at (and replaced my own implementation with) snippets from this great tutorial: 
+- For positional encodings and the one-matrix-specifics of MHA I looked at (and replaced my own implementation with) snippets from this great tutorial: 
 https://uvadlc-notebooks.readthedocs.io/en/latest/tutorial_notebooks/tutorial6/Transformers_and_MHAttention.html
 - Thanks David Stap for suggesting me to implement the Attention is all you need paper from scratch!
