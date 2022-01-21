@@ -20,7 +20,7 @@ class MultiHeadAttention(nn.Module):
         self.num_heads = num_heads
 
         """
-        Each element in x @ W_proj will be a dot product between a row in x and a columns in W. This means that 
+        Each element in x @ W_proj will be the dot product between a row in x and a columns in W. This means that 
         multiplying input x with a (hidden_dim, 3*hidden_dim) matrix will be identical to performing three matrix 
         multiplications with three separate W matrices of (hidden_dim, hidden_dim). This in turn is identical to 
         performing, 8 separate matrix multiplications of (hidden_dim, hidden_dim/8). In other words; each extra column 
