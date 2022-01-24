@@ -96,6 +96,7 @@ class TestMultiHeadAttention(unittest.TestCase):
 
         self.assertEqual(values.shape, (4, 8, 10, 512))
         self.assertEqual(attention.shape, (4, 8, 10, 10))
+        self.assertEqual(torch.sum(attention[0, 0, 0]) == 1)
         self.assertEqual(True in torch.isnan(values), False)
         self.assertEqual(True in torch.isnan(attention), False)
 
