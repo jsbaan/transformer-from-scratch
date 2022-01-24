@@ -51,8 +51,8 @@ class MultiHeadAttention(nn.Module):
         # Dot product between all query vectors and all key vectors
         # E.g.: first entry contains the dot product between the first query vector and all key vectors in the sequence
         attn_logits = torch.matmul(
-            q, torch.transpose(k, -2, -1)
-        )  # (n_batches, num_heads, seq_length, seq_length)
+            q, torch.transpose(k, -2, -1)  # k transpose is (n_batches, num_heads, qkv_dim, seq_length)
+        )  # output dim is (n_batches, num_heads, seq_length, seq_length)
 
         # Scale these "cross dot products" by a constant
         attn_logits_scaled = attn_logits / math.sqrt(q.size()[-1])
@@ -69,7 +69,7 @@ class MultiHeadAttention(nn.Module):
         n_batches, sequence_length, hidden_dim = x.size()
 
         # Extract Q, K and V
-        qkv = self.qkv_proj(x)  # why can't I simply do .chunk(3, dim=-1) here?
+        qkv = self.qkv_proj(x)  # todo why can't I simply do .chunk(3, dim=-1) here?
         qkv = qkv.reshape(n_batches, sequence_length, self.num_heads, 3 * self.qkv_dim)
         qkv = qkv.permute(0, 2, 1, 3)  # (n_batches, num_heads, sequence_length, 3*qkv_dim)
         q, k, v = qkv.chunk(3, dim=-1)

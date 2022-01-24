@@ -35,34 +35,67 @@ WORK IN PROGRESS!
 - Publish this repo and write blogpost about what I learned / what surprised me (notes below).
 
 ## Lessons Learned / Implementation Notes
-Multi-head attention is implemented with **one** weight matrix per layer/block. 
-This matrix governs all key, query and value projections for all heads in that layer.
-We can interpret this matrix to contain the projection parameters that (in parallel, hence the improved efficiency of transformers) transform each 512 dimensional input token embedding - and later 512 dimensional hidden representation - to their 64 dimensional key, query and value vectors. 
-For each of the 8 heads.
+I'm assuming high-level knowledge about the transformer architecture. 
+Take a look at the great [Illustrated Transformer](https://jalammar.github.io/illustrated-transformer/) post for a refresher. 
 
-To see how, recall that in matrix multiplication R=X@W, each element in the resulting matrix R is the sum of an element-wise product between (a.k.a. linear combination of) a row vector in X and a column vector in W.
-Thus, each column vector in the resulting matrix contains a different linear combination of all elements in X (todo: this is unwanted, we need this projection independently per input token=row in X) and one column vector in W.
-This means we can simply keep stacking more columns in our weight matrix to create more and more versions of projections of our input X.
+### Multi-Head Attention
+1. Multi-head attention is actually implemented with **one** weight matrix (for every layer in the encoder and decoder). 
+   This matrix contains the parameters that project each (contextualized) token embedding into its key, query and value vectors for all heads in that layer **at once**.
+2. The dimensionality of the key, query and value vectors is dynamically set to the number of hidden dimensions (e.g. 512) divided by the number of heads (e.g. 8). For example, see the pytorch [implementation](https://github.com/pytorch/pytorch/blob/master/torch/nn/modules/activation.py#L917). 
+   As a consequence, they must be divisible. 
+   Also, as we increase the number of heads while keeping the number of hidden dimensions fixed, the dimensionality of the key, query and value dimensionality shrink.
 
-This image (taken from [this](https://medium.com/ai%C2%B3-theory-practice-business/fastai-partii-lesson08-notes-fddcdb6526bb) Medium blogpost) might help you to visualize the above.
+Let's take a closer look at this mysterious 512 by 1536 projection matrix W and how we should interpret it. 
+Remember that this projection can be applied to each token embedding in a batch in parallel: an important factor in the transformer's success. 
+
+Recall that in the matrix multiplication R=X@W, each element in the resulting matrix R is the sum of the element-wise product between (a.k.a. linear combination of) a row vector in X and a column vector in W.
+The image below (taken from [this](https://medium.com/ai%C2%B3-theory-practice-business/fastai-partii-lesson08-notes-fddcdb6526bb) Medium post) neatly visualizes that.
 ![](https://miro.medium.com/max/1400/1*D_1tbv_wNFJ-rrremAGX4Q.png)
 
-Let's try an example. Say our input consists of 10 tokens. This results in matrix X with dim(10, 512). We ignore batches for now.
-We now initialize a weight matrix W of dim(512, 1536). 
-We can decompose 1536 into 3 * 512: 3 for the three different key, query and value projections, and 512 for the projection dimension. 
-We will soon discover that 512 actually conceals the number of heads.  
+Thus, **each element in the first row of R is a different linear combination of the first token embedding row and one of the (learnable) column vectors in W.**
+This means we can simply stack more columns in our weight matrix W to create more "linear-combination-elements" for each token embedding row in X.
+Note that the same weight column is always responsible for the same hidden dimension in the resulting matrix R for all token embedding rows (e.g. dim 5 in every query vector is the result of the 5th weight column).   
 
-Matrix multiplication R=X@W returns matrix R of dim(10, 1536). We interpret R as containing 3 * 8 different projection vectors of dimensionality 64 for each of the 10 input representations.
-(todo: is the above actually correct? how do we ensure each chunk of 64 is a linear combination of all elements of one of the input embedding?)
+The next question is: how do we interpret these elements in R such that we have three neat key, query and key vectors with 64 elements for each of the eight heads?   
 
-- The query, key and value vector dimension is dynamically set to hidden_dim/num_heads in most (e.g. PyTorch, see [this](https://github.com/pytorch/pytorch/blob/master/torch/nn/modules/activation.py#L917) line) default implementations. This means that as you increase the number of heads without increasing the hidden dimensions, the head dimensionality decreases.
-- Vanilla transformers can handle arbitrary length inputs in theory. In practice, however, self-attention has [compute and memory requirements](https://ai.googleblog.com/2021/03/constructing-transformers-for-longer.html#:~:text=With%20commonly%20available%20current%20hardware,summarization%20or%20genome%20fragment%20classification.) that limit the input sequence to usually around 512 tokens. Models like BERT do in fact impose a hard length limit because they use learned embeddings instead of the sinusoid encoding. These learned position embeddings embed up to a predefined position (512 for BERT).
-- Each input sequence in a batch must be padded to the longest sentence in that batch. It's common practice to batch sequences together with similar length to optimally use available compute.
-- Sinusoid positional (non-learned) encodings add sine (to all even dims) or cosine (to all uneven dims) waves to all dimensions. These sinusoid waves "flow across" token positions. The shape of each wave differs per dimension and is determined by the token and dimension index.  
-- A shared source-target byte-pair encoding vocabulary is used. The input embedding weights are shared between encoder and decoder. Its transpose is used as the final linear transformation in the decoder, right before the softmax, to reduce overfitting and the number of parameters. (todo: elaborate on why)
-- The final decoder hidden state that corresponds to the position index of decoder’s last input token is used to predict the next token. Multiplying this hidden state of dim(batch_size, hidden_dim) with the transpose shared embedding matrix results in the unnormalized distribution (logits) over the vocabulary for each example in the batch. The other hidden states are simply discarded. (todo: check this)
-- The embedding weights are divided by sqrt(hidden_dim // num_heads). (todo: why)
-- The intermediate hidden representations can be viewed as a "residual stream". They are actually quite similar to the cell state in LSTMs. Read more about this in Anthropic's [recent publication](https://transformer-circuits.pub/2021/framework/index.html) about reverse engineering a transformer.
+Let's work through an example. Say our input consists of 4 tokens: ["how", "are", "you"]. 
+Running this through the embedding matrix we obtain a (3, 512) matrix X. We ignore batches for now.
+We now initialize a (512, 1536) weight matrix W. (Woah, what a coincidence: 1536 = 3 * 8 * 64!)
+Matrix multiplication R=X@W returns a (3, 1536) matrix R. 
+We can now interpret R as containing eight (heads) sets of three (key, query, value) 64-dimensional vectors.
+
+Finally, we extract and reshape the chunks that we interpret as query vectors Q into (batch_size, num_heads, qkv_dim, seq_length). 
+We multiply Q with the transpose of K, which results in the attention logits (batch_size, num_heads, seq_length, qkv_dim).
+After normalizing these logits with sqrt(dim_q) and applying the softmax, we multiply the resulting attention weights with V.
+This 
+
+### Positional Embeddings
+Sinusoid positional (non-learned) encodings add sine (to all even dims) or cosine (to all uneven dims) waves to all dimensions. 
+These sinusoid waves "flow across" token positions. 
+The shape of each wave differs per dimension and is determined by the token and dimension index.
+
+### Actually Predicting the Next Token
+The final decoder hidden state that corresponds to the position index of decoder’s last input token is used to predict the next token. 
+Multiplying this hidden state of dim(batch_size, hidden_dim) with the transpose shared embedding matrix results in the unnormalized distribution (logits) over the vocabulary for each example in the batch. 
+The other hidden states are simply discarded. (todo: check this)
+
+### Weight Tying
+A shared source-target byte-pair encoding vocabulary is used. 
+The input embedding weights are shared between encoder and decoder. 
+Its transpose is used as the final linear transformation in the decoder, right before the softmax, to reduce overfitting and the number of parameters. (todo: elaborate on why)
+
+Fun fact: the embedding weights are divided by sqrt(hidden_dim // num_heads). (todo: why)
+
+### What About the Input?
+1. Vanilla transformers can handle arbitrary length inputs in theory. 
+In practice, however, self-attention has [compute and memory requirements](https://ai.googleblog.com/2021/03/constructing-transformers-for-longer.html#:~:text=With%20commonly%20available%20current%20hardware,summarization%20or%20genome%20fragment%20classification.) that limit the input sequence to usually around 512 tokens. 
+Models like BERT do in fact impose a hard length limit because they use learned embeddings instead of the sinusoid encoding. 
+These learned position embeddings embed up to a predefined position (512 for BERT).
+2. Each input sequence in a batch must be padded to the longest sentence in that batch. 
+It's common practice to batch sequences together with similar length to optimally use available compute.
+
+### Alternative Perspective
+The intermediate hidden representations can be viewed as a "residual stream". They are actually quite similar to the cell state in LSTMs. Read more about this in Anthropic's [recent publication](https://transformer-circuits.pub/2021/framework/index.html) about reverse engineering a transformer.
 
 ## References
 - For positional encodings and the one-matrix-specifics of MHA I looked at (and replaced my own implementation with) snippets from this great tutorial: 
