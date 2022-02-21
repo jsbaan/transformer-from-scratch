@@ -1,7 +1,9 @@
 import math
+import unittest
+from typing import Optional
+
 import torch
 from torch import nn
-import unittest
 
 
 class MultiHeadAttention(nn.Module):
@@ -45,37 +47,51 @@ class MultiHeadAttention(nn.Module):
         self.o_proj.bias.data.fill_(0)
 
     @staticmethod
-    def scaled_dot_product(q: torch.Tensor, k: torch.Tensor, v: torch.Tensor):
-        """ All input tensors have dimensionality (n_batches, num_heads, sequence_length, qkv_dim) """
+    def scaled_dot_product(
+        q: torch.Tensor,
+        k: torch.Tensor,
+        v: torch.Tensor,
+        mask: Optional[torch.BoolTensor] = None,
+    ):
+        """ query, key and value tensors have dimensionality (n_batches, num_heads, sequence_length, qkv_dim) """
 
-        # Dot product between all query vectors and all key vectors
-        # E.g.: first entry contains the dot product between the first query vector and all key vectors in the sequence
-        attn_logits = torch.matmul(
-            q, torch.transpose(k, -2, -1)  # k transpose is (n_batches, num_heads, qkv_dim, seq_length)
-        )  # output dim is (n_batches, num_heads, seq_length, seq_length)
+        # Compute attention logits: dot product between each query and key vector (through one matrix multiplication)
+        # Results in un-normalized attention scores for each position's query vector to each position's key vector
+        # k^T dim(n_batches, num_heads, qkv_dim, seq_length), output dim(n_batches, num_heads, seq_length, seq_length)
+        attn_logits = torch.matmul(q, torch.transpose(k, -2, -1),)
 
-        # Scale these "cross dot products" by a constant
-        attn_logits_scaled = attn_logits / math.sqrt(q.size()[-1])
+        # Scale logits by constant to create less spiky softmax distribution
+        attn_logits = attn_logits / math.sqrt(q.size()[-1])
 
-        # Transform logits to attention probability distribution
-        attention = nn.functional.softmax(attn_logits_scaled, dim=-1)
+        # Apply attention mask (for pad tokens and future-masking in cross-attention)
+        if mask is not None:
+            attn_logits = (
+                attn_logits.permute(1, 0, 2, 3)
+                .masked_fill(mask.unsqueeze(1) == 0, float("-inf"))
+                .permute(1, 0, 2, 3)
+            )
 
-        # Weighted sum of value vectors for each input token using attention weights -> contextualized representation
-        values = torch.matmul(attention, v)  # (n_batches, num_heads, sequence_length, qkv_dim)
+        # Transform logits to attention probability distribution (one distribution per non-masked token index)
+        attention = nn.functional.softmax(attn_logits, dim=-1)
+
+        # Weighted sum of value vectors for each input token using attention scores -> new contextualized representation
+        # (n_batches, num_heads, sequence_length, qkv_dim)
+        values = torch.matmul(attention, v)
         return values, attention
 
-    def forward(self, x: torch.Tensor):
+    def forward(self, x: torch.Tensor, mask: torch.BoolTensor = None):
         """ Perform multi-head attention"""
         n_batches, sequence_length, hidden_dim = x.size()
 
-        # Extract Q, K and V
+        # Project input and extract the chunks that we interpret as Q, K and V
         qkv = self.qkv_proj(x)  # todo why can't I simply do .chunk(3, dim=-1) here?
         qkv = qkv.reshape(n_batches, sequence_length, self.num_heads, 3 * self.qkv_dim)
-        qkv = qkv.permute(0, 2, 1, 3)  # (n_batches, num_heads, sequence_length, 3*qkv_dim)
+
+        qkv = qkv.permute(0, 2, 1, 3)
         q, k, v = qkv.chunk(3, dim=-1)
 
-        # Compute contextualized value vector for each "head"
-        values, attn = self.scaled_dot_product(q, k, v)  # (n_batches, num_heads, seq_len, qkv_dim)
+        # Compute contextualized value vector for each "head": values dim(n_batches, num_heads, seq_len, qkv_dim)
+        values, attn = self.scaled_dot_product(q, k, v, mask=mask)
 
         # Concatenate contextualized value vectors from all heads
         values = values.permute(0, 2, 1, 3)
@@ -86,21 +102,53 @@ class MultiHeadAttention(nn.Module):
 
 
 class TestMultiHeadAttention(unittest.TestCase):
+    JB_DISABLE_BUFFERING = 1
+
     def test_scaled_dot_product(self):
         mha = MultiHeadAttention(512, 8)
         q = torch.randn(4, 8, 10, 512)
         k = torch.randn(4, 8, 10, 512)
         v = torch.randn(4, 8, 10, 512)
 
-        values, attention = mha.scaled_dot_product(q, k, v)
+        values, attention_scores = mha.scaled_dot_product(q, k, v)
 
         self.assertEqual(values.shape, (4, 8, 10, 512))
-        self.assertEqual(attention.shape, (4, 8, 10, 10))
-        self.assertEqual(torch.sum(attention[0, 0, 0]) == 1)
-        self.assertEqual(True in torch.isnan(values), False)
-        self.assertEqual(True in torch.isnan(attention), False)
+        self.assertEqual(attention_scores.shape, (4, 8, 10, 10))
 
-    def test_forward(self):
+        # Each attention distribution should sum up to one
+        expected = torch.FloatTensor([1.0]).repeat((4, 8, 10))
+        self.assertEqual(
+            torch.all(torch.isclose(torch.sum(attention_scores, dim=-1), expected)),
+            True,
+        )
+
+        self.assertEqual(True in torch.isnan(values), False)
+        self.assertEqual(True in torch.isnan(attention_scores), False)
+
+    def test_scaled_dot_product_mask(self):
+        mha = MultiHeadAttention(hidden_dim=512, num_heads=8)
+        q = torch.randn(2, 8, 10, 512)
+        k = torch.randn(2, 8, 10, 512)
+        v = torch.randn(2, 8, 10, 512)
+        mask = torch.BoolTensor(
+            [[1, 1, 1, 1, 1, 1, 1, 1, 0, 0], [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]]
+        )
+
+        _, attention_scores = mha.scaled_dot_product(q, k, v, mask=mask)
+
+        # For the first sequence we expect the last two (8-10) attention scores for every attention distribution
+        # for every head to be exactly zero due to the mask we defined above. The rest should be strictly non-zero.
+        self.assertEqual(torch.all(attention_scores[0, :, :, 8:] == 0), True)
+        self.assertEqual(torch.any(attention_scores[0, :, :, :8] == 0), False)
+
+        # Each attention distribution should sum up to one (all values after summing should be 1)
+        expected = torch.FloatTensor([1.0]).repeat((2, 8, 10))
+        torch.all(torch.isclose(torch.sum(attention_scores, dim=-1), expected))
+
+        # For the second sequence in the batch all attention scores should be nonzero because the mask is all ones
+        self.assertEqual(torch.any(attention_scores[1] == 0), False)
+
+    def test_mha_forward(self):
         mha = MultiHeadAttention(512, 8)
         x = torch.randn(4, 10, 512)
         output = mha.forward(x)
