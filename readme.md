@@ -7,16 +7,17 @@ WORK IN PROGRESS!
 
 # To do:
 ### Code
-- Multiplying embedding weights seems to result in the softmax output always being the first or last token, removing it fixes it... ??
-- Decoder unit test for a "training step" with future masking
-- Write minimal training loop to test if I can fit a tiny dataset
+- The encoder hidden states seem to be too small which somehow causes the decoder to place most of its mass on 0th index for each hidden state for each batch instance. I can fix this by scaling the encoder hidden states with sqrt(hidden_dim) but this should not be happening. 
+- Implement future masking for each decoding timestep, as even during autoregressive updates the first token is not allowed to attend to the second token!
+- Write minimal training loop to test if model can fit a tiny dataset
   - Optimizer & settings
   - Check whether BOS and EOS tokens should be added to each training sentence; remove this from the tokenization if not.
 
 ### Writing
 - Add details about masking in MHA
-- Add details about the meaning of the word projection
+- Add details about the formal meaning of the word projection
 - Expand on layer normalization; most people know it normalizes the batch somehow but what does that actually do?
+- Write about relation between transformer and popular models such as bert or gpt
 - Think about title, motivation and framing
 
 # Features:

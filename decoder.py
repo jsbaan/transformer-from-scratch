@@ -47,7 +47,7 @@ class TransformerDecoder(nn.Module):
 
     def forward(
         self,
-        input_tokens: torch.Tensor,
+        input_tokens: torch.IntTensor,
         encoder_hidden_states: torch.Tensor,
         src_mask: torch.BoolTensor,
         tgt_mask: Optional[torch.BoolTensor] = None
@@ -119,8 +119,10 @@ class TransformerDecoderBlock(nn.Module):
 
 class TestTransformerDecoder(unittest.TestCase):
     def test_transformer_decoder_inference(self):
-        """ Test two forward passes, simulating two inference decoding steps"""
-        seed = 1
+        """
+        Test two forward passes, simulating two inference decoding steps
+        """
+        seed = 0
         torch.manual_seed(seed)
         random.seed(seed)
         np.random.seed(seed)
@@ -129,7 +131,7 @@ class TestTransformerDecoder(unittest.TestCase):
             n_batches, seq_len, hidden_dim, vocab_size = 2, 10, 512, 2000
 
             # Prepare fake encoder hidden states and attention masks
-            encoder_hidden_states = torch.randn((n_batches, seq_len, hidden_dim))
+            encoder_hidden_states = torch.randn((n_batches, seq_len, hidden_dim)) * math.sqrt(hidden_dim)
             src_mask = torch.BoolTensor(
                 [[1, 1, 1, 1, 1, 1, 1, 1, 0, 0], [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]]
             )
@@ -156,24 +158,19 @@ class TestTransformerDecoder(unittest.TestCase):
             self.assertEqual(torch.any(output == 1), False)
 
             # Append argmax prediction to the decoder input
-            predicted_token_ids = torch.argmax(output, dim=-1)
+            predicted_token_ids = torch.argmax(output[:, -1, :], dim=-1).unsqueeze(-1)
             decoder_input_ids = torch.cat((decoder_input_ids, predicted_token_ids), dim=-1)
+            self.assertEqual(decoder_input_ids.shape, (n_batches, 2))
 
             # Perform second forward pass
             output = decoder.forward(
                 decoder_input_ids, encoder_hidden_states, src_mask, tgt_mask=None
             )
             self.assertEqual(output.shape, (n_batches, 2, vocab_size))
+            predicted_token_ids = torch.argmax(output[:, -1, :], dim=-1).unsqueeze(-1)
             decoder_input_ids = torch.cat((decoder_input_ids, predicted_token_ids), dim=-1)
-            # TODO this is weird, I expect random token indices here
-            raise Exception("Decoder softmax output should not always be 0")
-            torch.testing.assert_allclose(
-                decoder_input_ids,
-                torch.Tensor([
-                    [0, 0, 0],
-                    [0, 0, 0]
-                ])
-            )
+            self.assertEqual(torch.all(decoder_input_ids == 0), False)
+            # TODO construct future masking after timestep 1
 
 
 if __name__ == "__main__":

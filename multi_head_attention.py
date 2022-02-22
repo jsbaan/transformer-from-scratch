@@ -49,8 +49,8 @@ class MultiHeadAttention(nn.Module):
     def forward(
         self,
         x: torch.FloatTensor,
-        encoder_hidden_states: torch.FloatTensor = None,
-        mask: torch.BoolTensor = None,
+        encoder_hidden_states: Optional[torch.FloatTensor] = None,
+        mask: Optional[torch.BoolTensor] = None,
     ):
         """
         Perform multi-head attention using one projection matrix.
@@ -184,7 +184,7 @@ class TestMultiHeadAttention(unittest.TestCase):
         expected = torch.FloatTensor([1.0]).repeat((4, 8, 10))
         torch.testing.assert_close(torch.sum(attention_scores, dim=-1), expected)
 
-        self.assertEqual(True in torch.isnan(values), False)
+        self.assertEqual(torch.any(torch.isnan(values)), False)
         self.assertEqual(True in torch.isnan(attention_scores), False)
 
     def test_scaled_dot_product_mask(self):
@@ -197,6 +197,7 @@ class TestMultiHeadAttention(unittest.TestCase):
         )
 
         _, attention_scores = mha.scaled_dot_product(q, k, v, mask=mask)
+        self.assertEqual(torch.any(torch.isnan(attention_scores)), False)
 
         # For the first sequence we expect the last two (8-10) attention scores for every attention distribution
         # for every head to be exactly zero due to the mask we defined above. The rest should be strictly non-zero.
@@ -215,7 +216,7 @@ class TestMultiHeadAttention(unittest.TestCase):
         x = torch.randn(4, 10, 512, dtype=torch.float)
         output = mha.forward(x)
         self.assertEqual(output.shape, (4, 10, 512))
-        self.assertEqual(True in torch.isnan(output), False)
+        self.assertEqual(torch.any(torch.isnan(output)), False)
 
     def test_mha_cross_attention_forward(self):
         mha = MultiHeadAttention(512, 8)
@@ -225,7 +226,7 @@ class TestMultiHeadAttention(unittest.TestCase):
             x=decoder_hidden_states, encoder_hidden_states=encoder_hidden_states
         )
         self.assertEqual(output.shape, (4, 2, 512))
-        self.assertEqual(True in torch.isnan(output), False)
+        self.assertEqual(torch.any(torch.isnan(output)), False)
 
 
 if __name__ == "__main__":

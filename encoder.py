@@ -34,13 +34,13 @@ class TransformerEncoder(nn.Module):
             if p.dim() > 1:
                 xavier_uniform_(p)
 
-    def forward(self, input_ids: torch.Tensor, mask: torch.BoolTensor = None):  # (n_batches, sequence_length)
+    def forward(self, input_ids: torch.Tensor, src_mask: torch.BoolTensor = None):  # (n_batches, sequence_length)
         # (n_batches, sequence_length, hidden_dim)
         x = self.embed(input_ids) * math.sqrt(self.hidden_dim)
         x = self.positional_encoding(x)
         x = self.dropout(x)
         for encoder_block in self.encoder_blocks:
-            x = encoder_block.forward(x, mask=mask)  # (n_batches, sequence_length, hidden_dim)
+            x = encoder_block.forward(x, src_mask=src_mask)  # (n_batches, sequence_length, hidden_dim)
         return x
 
 
@@ -59,9 +59,9 @@ class EncoderBlock(nn.Module):
         self.layer_norm1 = nn.LayerNorm(hidden_dim)
         self.layer_norm2 = nn.LayerNorm(hidden_dim)
 
-    def forward(self, x: torch.Tensor, mask: torch.BoolTensor = None):
+    def forward(self, x: torch.FloatTensor, src_mask: torch.BoolTensor = None):
         # (n_batches, sequence_length, hidden_dim)
-        output = self.dropout1(self.self_mha.forward(x, mask=mask))
+        output = self.dropout1(self.self_mha.forward(x, mask=src_mask))
         x = self.layer_norm1(x + output)
 
         output = self.dropout2(self.feed_forward(x))
@@ -94,6 +94,7 @@ class TestTransformerEncoder(unittest.TestCase):
 
             output = encoder.forward(input_batch)
             self.assertEqual(output.shape, (1, 14, 512))
+            self.assertEqual(torch.any(torch.isnan(output)), False)
 
     def test_transformer_encoder_multi_sequence_batch(self):
         # Create vocabulary and special token indices given a dummy batch
@@ -118,10 +119,11 @@ class TestTransformerEncoder(unittest.TestCase):
             input_batch = torch.IntTensor(
                 en_vocab.batch_encode(batch, add_special_tokens=False, padding=True)
             )
-            src_mask = input_batch == en_vocab.token2index[en_vocab.PAD]
+            src_mask = input_batch != en_vocab.token2index[en_vocab.PAD]
 
-            output = encoder.forward(input_batch, mask=src_mask)
+            output = encoder.forward(input_batch, src_mask=src_mask)
             self.assertEqual(output.shape, (2, 14, 512))
+            self.assertEqual(torch.any(torch.isnan(output)), False)
 
 
 if __name__ == "__main__":
