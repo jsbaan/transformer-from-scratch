@@ -7,12 +7,11 @@ WORK IN PROGRESS!
 
 # To do:
 ### Code
-- Finish TransformerDecoder implementation: cross & self-attention
-  - Implement attention mask for pad tokens and decoder self-attention
-- Decoder & Transformer main class unit tests
-- Divide embedding weights by sqrt(hidden_dim // num_heads)
-- Training loop, optimizer & settings etc.
-  - Check whether BOS and EOS tokens should be added to each training sentence; remove this from the vocab class if not.
+- Multiplying embedding weights seems to result in the softmax output always being the first or last token, removing it fixes it... ??
+- Decoder unit test for a "training step" with future masking
+- Write minimal training loop to test if I can fit a tiny dataset
+  - Optimizer & settings
+  - Check whether BOS and EOS tokens should be added to each training sentence; remove this from the tokenization if not.
 
 ### Writing
 - Add details about masking in MHA
@@ -22,13 +21,14 @@ WORK IN PROGRESS!
 
 # Features:
 - The simplest imaginable Vocabulary class (vocabulary.py)
-- The simplest imaginable tokenization method (vocabulary.py)
-- TransformerEncoder class (transformer.py)
-- TransformerDecoder class (transformer.py)
+- The simplest imaginable (batch) tokenization (vocabulary.py)
+- TransformerEncoder and EncoderBlock class (encoder.py)
+- TransformerDecoder and EncoderBlock class (decoder.py)
 - Transformer class (transformer.py)
-- MultiHeadAttention class (multi_head_attention.py)
+- MultiHeadAttention class with scaled dot product method (multi_head_attention.py)
 - SinusoidEncoding class (positional_encoding.py)
 - Basic unit tests for each class
+- Type checking
 - Code formatted using [black](https://github.com/psf/black)
 - Python 3.9, PyTorch 1.9.1
 
@@ -38,4 +38,3 @@ WORK IN PROGRESS!
 - Run unit tests on each commit using Github Actions 
   - Refactor unit tests to separate folder and files
   - Run pylint on codebase
-- Publish this repo and write blogpost about what I learned / what surprised me (notes below).
