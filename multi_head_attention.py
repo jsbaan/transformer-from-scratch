@@ -8,12 +8,6 @@ from torch.nn import functional as F
 
 
 class MultiHeadAttention(nn.Module):
-    """
-    Cheated by looking at
-    https://uvadlc-notebooks.readthedocs.io/en/latest/tutorial_notebooks/tutorial6/Transformers_and_MHAttention.html.
-    To allow for arbitrary inputs, an additional param input_dim could be passed.
-    """
-
     def __init__(self, hidden_dim: int, num_heads: int):
         super().__init__()
         """
@@ -50,34 +44,54 @@ class MultiHeadAttention(nn.Module):
         self,
         x: torch.FloatTensor,
         encoder_hidden_states: Optional[torch.FloatTensor] = None,
-        mask: Optional[torch.BoolTensor] = None,
+        key_padding_mask: Optional[torch.BoolTensor] = None,
+        attn_mask: Optional[torch.BoolTensor] = None,
     ):
         """
         Perform multi-head attention using one projection matrix.
         Self attention is performed when encoder_hidden_states is None.
-        x is (n_batches, sequence_length, hidden_dim)
+        Otherwise, cross-attention is performed
+        In that case, input x represents the decoder hidden states.
 
-        Cross-attention is performed when encoder_hidden_states are not None.
-        In that case, input x represents the decoder hidden states with dim=(n_batches, tgt_sequence_length, hidden_dim)
-        and encoder_hidden_state has dim=(n_batches, src_sequence_length, hidden_dim)
+        x:
+            (batch_size, sequence_length, hidden_dim)
+        encoder_hidden_states:
+            (batch_size, src_sequence_length, hidden_dim)
+        key_padding_mask:
+            Dim (N, S).
+            Used for encoder self-attention, decoder self-attention and cross-attention to handle pad tokens.
+            # TODO can we use the same src key_padding_mask for encoder self-attention and decoder cross-attention?
+            Contains a mask value for each "key/receiving" token for each sequence in the batch.
+            All pad tokens in a batch are marked in this mask such that all their "incoming" logits are set to -inf.
+
+        attn_mask:
+            Dim (N * num_heads, T, S) OR (T, S) where T=S for both encoder and decoder self-attention.
+            A 2D mask will be broadcasted across the batch.
+            A 3D mask allows for a different mask for every sequence in the batch.
+            Future masking in decoder self-attention is done using the 2D mask, as no sequence in the batch can peak.
+            # TODO do we only use this for future-masking? Or more things? Do we need the 3D mask at all? Can I call attn_mask future_mask?
+
+        N=batch_size
+        S=src_seq_len
+        T=tgt_seq_len
         """
-        n_batches, sequence_length, hidden_dim = x.size()
+        batch_size, sequence_length, hidden_dim = x.size()
 
         if encoder_hidden_states is None:
             q, v, k = self._self_attention_projection(x)
         else:
             q, v, k = self._cross_attention_projection(encoder_hidden_states, x)
 
-        # Swap dimensions to (n_batches, n_heads, seq_len, qkv_dim). This is required for scaled dot product.
+        # Swap dimensions to (batch_size, n_heads, seq_len, qkv_dim). This is required for scaled dot product. TODO why?
         q = q.permute(0, 2, 1, 3)
         k = k.permute(0, 2, 1, 3)
         v = v.permute(0, 2, 1, 3)
 
         # Compute (contextualized) value vector for each "head"
-        values, attn = self.scaled_dot_product(q, k, v, mask=mask)
+        values, attn = self.scaled_dot_product(q, k, v, key_padding_mask, attn_mask)
 
         # Concatenate contextualized value vectors from all heads
-        values = values.reshape(n_batches, sequence_length, hidden_dim)
+        values = values.reshape(batch_size, sequence_length, hidden_dim)
 
         # Linearly transform the concatenation of all heads' value vectors (8*64=512) to the original hidden dim (512)
         output = self.o_proj(values)
@@ -86,12 +100,12 @@ class MultiHeadAttention(nn.Module):
     def _self_attention_projection(self, x: torch.FloatTensor):
         """
         Project x and interpret the result as chunks that represent q, k and v vectors for every head.
-        x can be encoder or decoder hidden states, depending on which one calls this MHA module.
+        Input x can be encoder or decoder hidden states, depending on which one calls this MHA module.
 
         """
-        n_batches, sequence_length, _ = x.shape
+        batch_size, sequence_length, _ = x.shape
         qkv = self.qkv_proj(x)
-        qkv = qkv.reshape(n_batches, sequence_length, self.num_heads, 3 * self.qkv_dim)
+        qkv = qkv.reshape(batch_size, sequence_length, self.num_heads, 3 * self.qkv_dim)
         q, k, v = qkv.chunk(3, dim=-1)
         return q, k, v
 
@@ -101,13 +115,13 @@ class MultiHeadAttention(nn.Module):
         decoder_hidden_states: torch.FloatTensor,
     ):
         """
-        Project the decoder hidden states into query vectors and the encoder hidden states into key and value vectors.
+        Projects decoder hidden states into query vectors and encoder hidden states into key and value vectors.
         The columns of W_proj determine how much independent linear combinations of the input we obtain - which we
         then interpret as heads and qkv vectors. Thus we can simply split the weight matrix and project the decoder
         hidden states x into q separately from projecting the encoder_hidden_states into k and v.
         """
-        n_batches, src_sequence_length, hidden_dim = encoder_hidden_states.shape
-        n_batches, tgt_sequence_length, hidden_dim = decoder_hidden_states.shape
+        batch_size, src_sequence_length, hidden_dim = encoder_hidden_states.shape
+        batch_size, tgt_sequence_length, hidden_dim = decoder_hidden_states.shape
 
         # Split weight matrix and bias
         w_q, w_kv = self.qkv_proj.weight.split([hidden_dim, 2 * hidden_dim])
@@ -120,52 +134,66 @@ class MultiHeadAttention(nn.Module):
         # Project encoder_hidden_states into k's, and v's
         k, v = (
             F.linear(input=encoder_hidden_states, weight=w_kv, bias=b_kv)
-            .reshape(n_batches, src_sequence_length, self.num_heads, 2 * self.qkv_dim)
+            .reshape(batch_size, src_sequence_length, self.num_heads, 2 * self.qkv_dim)
             .chunk(2, dim=-1)
         )
 
         # Project decoder hidden states into q's
         q = F.linear(input=decoder_hidden_states, weight=w_q, bias=b_q).reshape(
-            n_batches, tgt_sequence_length, self.num_heads, self.qkv_dim
+            batch_size, tgt_sequence_length, self.num_heads, self.qkv_dim
         )
 
         return q, k, v
 
-    @staticmethod
     def scaled_dot_product(
+        self,
         q: torch.FloatTensor,
         k: torch.FloatTensor,
         v: torch.FloatTensor,
-        mask: Optional[torch.BoolTensor] = None,
+        key_padding_mask: Optional[torch.BoolTensor] = None,
+        attn_mask: Optional[torch.BoolTensor] = None,
     ):
         """
-        The query, key and value tensors must have dimensionality (n_batches, num_heads, sequence_length, qkv_dim).
+        The query, key and value tensors must have dimensionality (batch_size, num_heads, sequence_length, qkv_dim).
         For cross-attention, the sequence length may differ as q is projected from decoder hidden states and kv aren't
         """
 
         # Compute attention logits: dot product between each query and key vector (through one matrix multiplication)
         # Results in un-normalized attention scores for each position's query vector to each position's key vector
-        # k^T dim(n_batches, num_heads, qkv_dim, seq_length), output dim(n_batches, num_heads, seq_length, seq_length)
+        # k^T dim(batch_size, num_heads, qkv_dim, seq_length)
+        # logits dim(batch_size, num_heads, seq_length, seq_length)
         attn_logits = torch.matmul(q, torch.transpose(k, -2, -1),)
 
         # Scale logits by constant to create less spiky softmax distribution
         attn_logits = attn_logits / math.sqrt(q.size()[-1])
 
         # Apply attention mask (for pad tokens and future-masking in cross-attention)
-        if mask is not None:
-            attn_logits = (
-                attn_logits.permute(1, 0, 2, 3)
-                .masked_fill(mask.unsqueeze(1) == 0, float("-inf"))
-                .permute(1, 0, 2, 3)
-            )
+        if key_padding_mask is not None or attn_mask is not None:
+            attn_logits = self.mask_logits(attn_logits, key_padding_mask, attn_mask)
 
         # Transform logits to attention probability distribution (one distribution per non-masked token index)
         attention = F.softmax(attn_logits, dim=-1)
 
         # Weighted sum of value vectors for each input token using attention scores -> new contextualized representation
-        # (n_batches, num_heads, sequence_length, qkv_dim)
+        # (batch_size, num_heads, sequence_length, qkv_dim)
         values = torch.matmul(attention, v)
         return values, attention
+
+    @staticmethod
+    def mask_logits(
+        logits: torch.FloatTensor,
+        key_padding_mask: Optional[torch.BoolTensor],
+        attn_mask: Optional[torch.BoolTensor],
+    ):
+        """
+        Input: A (batch_size, num_heads, seq_length, seq_length) logits tensor and a binary (batch_size, seq_len by,
+         seq_len) mask matrix. Zeros indicate a mask. (i.e. set logit infinity such that softmax output will be zero).
+
+        A row i in the mask represents the masks for the attention logits computed for the
+        token at position i.
+        """
+        # TODO look at mask dims and how this differs per encoder/decoder. Fix implementation and unit test with all mask types
+        return logits.masked_fill(mask == 0, float("-inf"))
 
 
 class TestMultiHeadAttention(unittest.TestCase):
@@ -187,7 +215,7 @@ class TestMultiHeadAttention(unittest.TestCase):
         self.assertEqual(torch.any(torch.isnan(values)), False)
         self.assertEqual(True in torch.isnan(attention_scores), False)
 
-    def test_scaled_dot_product_mask(self):
+    def test_scaled_dot_product_encoder_self_attention_mask(self):
         mha = MultiHeadAttention(hidden_dim=512, num_heads=8)
         q = torch.randn(2, 8, 10, 512, dtype=torch.float)
         k = torch.randn(2, 8, 10, 512, dtype=torch.float)
@@ -227,6 +255,40 @@ class TestMultiHeadAttention(unittest.TestCase):
         )
         self.assertEqual(output.shape, (4, 2, 512))
         self.assertEqual(torch.any(torch.isnan(output)), False)
+
+    def test_masking(self):
+        batch_size, n_heads, seq_len = 2, 1, 3
+        logits = torch.randn(batch_size, n_heads, seq_len, seq_len, dtype=torch.float)
+        mask = torch.triu(torch.full((seq_len, seq_len), 1), diagonal=0).T
+
+        torch.testing.assert_close(
+            mask, torch.LongTensor([[1, 0, 0], [1, 1, 0], [1, 1, 1]])
+        )
+
+        masked_logits = MultiHeadAttention(512, num_heads=n_heads).mask_logits(
+            logits, mask
+        )
+        torch.testing.assert_close(
+            torch.isinf(masked_logits),
+            torch.BoolTensor(
+                [
+                    [
+                        [
+                            [False, True, True],
+                            [False, False, True],
+                            [False, False, False],
+                        ]
+                    ],
+                    [
+                        [
+                            [False, True, True],
+                            [False, False, True],
+                            [False, False, False],
+                        ]
+                    ],
+                ]
+            ),
+        )
 
 
 if __name__ == "__main__":
