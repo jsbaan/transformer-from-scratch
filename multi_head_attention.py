@@ -54,18 +54,14 @@ class MultiHeadAttention(nn.Module):
         Otherwise, cross-attention is performed
         In that case, input x represents the decoder hidden states.
 
-        x:
-            (batch_size, sequence_length, hidden_dim)
-        encoder_hidden_states:
-            (batch_size, src_sequence_length, hidden_dim)
-        src_padding_mask:
-            Dim (batch_size, src_sequence_length).
-            Used for encoder self-attention and cross-attention to handle pad tokens.
-            Masks all incoming "connections" or "logits" from any token position to any pad token in a sequence.
-
-        future_mask:
-            Dim (tgt_sequence_length, tgt_sequence_length).
-            Used for decoder self-attention to avoid any token i attending to a token >i, i.e. "peaking".
+        :param x: (batch_size, sequence_length, hidden_dim)
+        :param encoder_hidden_states: (batch_size, src_sequence_length, hidden_dim)
+        :param src_padding_mask: Dim (batch_size, src_sequence_length).Used for encoder self-attention and
+            cross-attention to handle pad tokens. Masks all incoming "connections" or "logits" from any token position
+            to any pad token in a sequence.
+        :param future_mask: Dim (tgt_sequence_length, tgt_sequence_length). Used for decoder self-attention to avoid
+            any token i attending to a token >i, i.e. "peaking".
+        :return:
         """
         batch_size, sequence_length, hidden_dim = x.size()
 
@@ -94,6 +90,8 @@ class MultiHeadAttention(nn.Module):
         Project x and interpret the result as chunks that represent q, k and v vectors for every head.
         Input x can be encoder or decoder hidden states, depending on which one calls this MHA module.
 
+        :param x: Encoder or decoder hidden states. (batch_size, seq_len, hidden_dim)
+        :return: query, key and value vectors. (batch_size, seq_len, num_heads, hidden_dim // num_heads)
         """
         batch_size, sequence_length, _ = x.shape
         qkv = self.qkv_proj(x)
@@ -114,7 +112,8 @@ class MultiHeadAttention(nn.Module):
 
         :param encoder_hidden_states: (batch_size, src_seq_len, hidden_dim)
         :param decoder_hidden_states: (batch_size, tgt_seq_len, hidden_dim)
-        :return:
+        :return: query vector (batch_size, tgt_seq_len, num_heads, qkv_dim) and
+            key and value vectors (batch_size, src_seq_len, num_heads, qkv_dim)
         """
         batch_size, src_sequence_length, hidden_dim = encoder_hidden_states.shape
         batch_size, tgt_sequence_length, hidden_dim = decoder_hidden_states.shape
@@ -158,7 +157,7 @@ class MultiHeadAttention(nn.Module):
         :param v: (batch_size, num_heads, seq_len, qkv_dim)
         :param src_padding_mask: (batch_size, src_seq_len)
         :param future_mask: (tgt_seq_len, tgt_seq_len)
-        :return:
+        :return: values (batch_size, num_heads, seq_len, qkv_dim), attention (batch_size, num_heads, seq_len, seq_len)
         """
 
         # Compute attention logits. Dot product between each query and key vector, through one matrix multiplication.
@@ -193,7 +192,7 @@ class MultiHeadAttention(nn.Module):
         :param logits: (batch_size, num_heads, seq_length, seq_length)
         :param src_padding_mask: (batch_size, src_seq_len)
         :param future_mask: (tgt_seq_len, tgt_seq_len)
-        :return: masked logits
+        :return: masked_logits (batch_size, num_heads, seq_length, seq_length)
         """
         if src_padding_mask is not None:
             masked_logits = logits.masked_fill(
