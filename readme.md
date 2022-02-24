@@ -7,8 +7,7 @@ WORK IN PROGRESS!
 
 # To do:
 ### Code
-- The encoder hidden states seem to be too small which somehow causes the decoder to place most of its mass on 0th index for each hidden state for each batch instance. I can fix this by scaling the encoder hidden states with sqrt(hidden_dim) but this should not be happening. 
-- Implement future masking for each decoding timestep, as even during autoregressive updates the first token is not allowed to attend to the second token!
+- The encoder hidden states seem to be too small which somehow causes the decoder to place most of its mass on 0th index for each hidden state for each batch instance. I can fix this by scaling the encoder hidden states with sqrt(hidden_dim) but this should not be happening.
 - Write minimal training loop to test if model can fit a tiny dataset
   - Optimizer & settings
   - Check whether BOS and EOS tokens should be added to each training sentence; remove this from the tokenization if not.

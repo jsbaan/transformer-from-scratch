@@ -5,6 +5,7 @@ from typing import Optional
 import torch
 from torch import nn
 from torch.nn import functional as F
+from utils import construct_future_mask
 
 
 class MultiHeadAttention(nn.Module):
@@ -44,8 +45,8 @@ class MultiHeadAttention(nn.Module):
         self,
         x: torch.FloatTensor,
         encoder_hidden_states: Optional[torch.FloatTensor] = None,
-        key_padding_mask: Optional[torch.BoolTensor] = None,
-        attn_mask: Optional[torch.BoolTensor] = None,
+        src_padding_mask: Optional[torch.BoolTensor] = None,
+        future_mask: Optional[torch.BoolTensor] = None,
     ):
         """
         Perform multi-head attention using one projection matrix.
@@ -57,23 +58,14 @@ class MultiHeadAttention(nn.Module):
             (batch_size, sequence_length, hidden_dim)
         encoder_hidden_states:
             (batch_size, src_sequence_length, hidden_dim)
-        key_padding_mask:
-            Dim (N, S).
-            Used for encoder self-attention, decoder self-attention and cross-attention to handle pad tokens.
-            # TODO can we use the same src key_padding_mask for encoder self-attention and decoder cross-attention?
-            Contains a mask value for each "key/receiving" token for each sequence in the batch.
-            All pad tokens in a batch are marked in this mask such that all their "incoming" logits are set to -inf.
+        src_padding_mask:
+            Dim (batch_size, src_sequence_length).
+            Used for encoder self-attention and cross-attention to handle pad tokens.
+            Masks all incoming "connections" or "logits" from any token position to any pad token in a sequence.
 
-        attn_mask:
-            Dim (N * num_heads, T, S) OR (T, S) where T=S for both encoder and decoder self-attention.
-            A 2D mask will be broadcasted across the batch.
-            A 3D mask allows for a different mask for every sequence in the batch.
-            Future masking in decoder self-attention is done using the 2D mask, as no sequence in the batch can peak.
-            # TODO do we only use this for future-masking? Or more things? Do we need the 3D mask at all? Can I call attn_mask future_mask?
-
-        N=batch_size
-        S=src_seq_len
-        T=tgt_seq_len
+        future_mask:
+            Dim (tgt_sequence_length, tgt_sequence_length).
+            Used for decoder self-attention to avoid any token i attending to a token >i, i.e. "peaking".
         """
         batch_size, sequence_length, hidden_dim = x.size()
 
@@ -82,13 +74,13 @@ class MultiHeadAttention(nn.Module):
         else:
             q, v, k = self._cross_attention_projection(encoder_hidden_states, x)
 
-        # Swap dimensions to (batch_size, n_heads, seq_len, qkv_dim). This is required for scaled dot product. TODO why?
+        # Swap dimensions to (batch_size, n_heads, seq_len, qkv_dim). Required for the matrix multiplication below
         q = q.permute(0, 2, 1, 3)
         k = k.permute(0, 2, 1, 3)
         v = v.permute(0, 2, 1, 3)
 
         # Compute (contextualized) value vector for each "head"
-        values, attn = self.scaled_dot_product(q, k, v, key_padding_mask, attn_mask)
+        values, attn = self.scaled_dot_product(q, k, v, src_padding_mask, future_mask)
 
         # Concatenate contextualized value vectors from all heads
         values = values.reshape(batch_size, sequence_length, hidden_dim)
@@ -119,6 +111,10 @@ class MultiHeadAttention(nn.Module):
         The columns of W_proj determine how much independent linear combinations of the input we obtain - which we
         then interpret as heads and qkv vectors. Thus we can simply split the weight matrix and project the decoder
         hidden states x into q separately from projecting the encoder_hidden_states into k and v.
+
+        :param encoder_hidden_states: (batch_size, src_seq_len, hidden_dim)
+        :param decoder_hidden_states: (batch_size, tgt_seq_len, hidden_dim)
+        :return:
         """
         batch_size, src_sequence_length, hidden_dim = encoder_hidden_states.shape
         batch_size, tgt_sequence_length, hidden_dim = decoder_hidden_states.shape
@@ -150,26 +146,32 @@ class MultiHeadAttention(nn.Module):
         q: torch.FloatTensor,
         k: torch.FloatTensor,
         v: torch.FloatTensor,
-        key_padding_mask: Optional[torch.BoolTensor] = None,
-        attn_mask: Optional[torch.BoolTensor] = None,
+        src_padding_mask: Optional[torch.BoolTensor] = None,
+        future_mask: Optional[torch.BoolTensor] = None,
     ):
         """
-        The query, key and value tensors must have dimensionality (batch_size, num_heads, sequence_length, qkv_dim).
-        For cross-attention, the sequence length may differ as q is projected from decoder hidden states and kv aren't
+        For cross-attention, the sequence length of q and (k,v) may differ as q is projected from decoder hidden states
+        and kv from encoder hidden states.
+
+        :param q: (batch_size, num_heads, seq_len, qkv_dim)
+        :param k: (batch_size, num_heads, seq_len, qkv_dim)
+        :param v: (batch_size, num_heads, seq_len, qkv_dim)
+        :param src_padding_mask: (batch_size, src_seq_len)
+        :param future_mask: (tgt_seq_len, tgt_seq_len)
+        :return:
         """
 
-        # Compute attention logits: dot product between each query and key vector (through one matrix multiplication)
+        # Compute attention logits. Dot product between each query and key vector, through one matrix multiplication.
         # Results in un-normalized attention scores for each position's query vector to each position's key vector
-        # k^T dim(batch_size, num_heads, qkv_dim, seq_length)
-        # logits dim(batch_size, num_heads, seq_length, seq_length)
+        # Result is (batch_size, num_heads, seq_length, seq_length)
         attn_logits = torch.matmul(q, torch.transpose(k, -2, -1),)
 
         # Scale logits by constant to create less spiky softmax distribution
         attn_logits = attn_logits / math.sqrt(q.size()[-1])
 
         # Apply attention mask (for pad tokens and future-masking in cross-attention)
-        if key_padding_mask is not None or attn_mask is not None:
-            attn_logits = self.mask_logits(attn_logits, key_padding_mask, attn_mask)
+        if src_padding_mask is not None or future_mask is not None:
+            attn_logits = self.mask_logits(attn_logits, src_padding_mask, future_mask)
 
         # Transform logits to attention probability distribution (one distribution per non-masked token index)
         attention = F.softmax(attn_logits, dim=-1)
@@ -182,18 +184,24 @@ class MultiHeadAttention(nn.Module):
     @staticmethod
     def mask_logits(
         logits: torch.FloatTensor,
-        key_padding_mask: Optional[torch.BoolTensor],
-        attn_mask: Optional[torch.BoolTensor],
+        src_padding_mask: Optional[torch.BoolTensor] = None,
+        future_mask: Optional[torch.BoolTensor] = None,
     ):
         """
-        Input: A (batch_size, num_heads, seq_length, seq_length) logits tensor and a binary (batch_size, seq_len by,
-         seq_len) mask matrix. Zeros indicate a mask. (i.e. set logit infinity such that softmax output will be zero).
+        Reshape masks to fit the shape of the logits and set all indices with "False" to -inf
 
-        A row i in the mask represents the masks for the attention logits computed for the
-        token at position i.
+        :param logits: (batch_size, num_heads, seq_length, seq_length)
+        :param src_padding_mask: (batch_size, src_seq_len)
+        :param future_mask: (tgt_seq_len, tgt_seq_len)
+        :return: masked logits
         """
-        # TODO look at mask dims and how this differs per encoder/decoder. Fix implementation and unit test with all mask types
-        return logits.masked_fill(mask == 0, float("-inf"))
+        if src_padding_mask is not None:
+            masked_logits = logits.masked_fill(
+                src_padding_mask[:, None, None, :] == 0, float("-inf")
+            )
+        if future_mask is not None:
+            masked_logits = logits.masked_fill(future_mask == 0, float("-inf"))
+        return masked_logits
 
 
 class TestMultiHeadAttention(unittest.TestCase):
@@ -224,7 +232,7 @@ class TestMultiHeadAttention(unittest.TestCase):
             [[1, 1, 1, 1, 1, 1, 1, 1, 0, 0], [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]]
         )
 
-        _, attention_scores = mha.scaled_dot_product(q, k, v, mask=mask)
+        _, attention_scores = mha.scaled_dot_product(q, k, v, src_padding_mask=mask)
         self.assertEqual(torch.any(torch.isnan(attention_scores)), False)
 
         # For the first sequence we expect the last two (8-10) attention scores for every attention distribution
@@ -256,35 +264,74 @@ class TestMultiHeadAttention(unittest.TestCase):
         self.assertEqual(output.shape, (4, 2, 512))
         self.assertEqual(torch.any(torch.isnan(output)), False)
 
-    def test_masking(self):
-        batch_size, n_heads, seq_len = 2, 1, 3
+    def test_future_masking(self):
+        batch_size, n_heads, seq_len = 2, 2, 3  # TODO add 2 heads and batch_size=3
         logits = torch.randn(batch_size, n_heads, seq_len, seq_len, dtype=torch.float)
-        mask = torch.triu(torch.full((seq_len, seq_len), 1), diagonal=0).T
-
-        torch.testing.assert_close(
-            mask, torch.LongTensor([[1, 0, 0], [1, 1, 0], [1, 1, 1]])
-        )
+        future_mask = construct_future_mask(seq_len)
+        self.assertEqual(future_mask.shape, (3, 3))
 
         masked_logits = MultiHeadAttention(512, num_heads=n_heads).mask_logits(
-            logits, mask
+            logits, future_mask=future_mask
         )
         torch.testing.assert_close(
-            torch.isinf(masked_logits),
+            torch.isinf(masked_logits) == 0,
             torch.BoolTensor(
                 [
                     [
                         [
-                            [False, True, True],
-                            [False, False, True],
-                            [False, False, False],
-                        ]
+                            [True, False, False],
+                            [True, True, False],
+                            [True, True, True],
+                        ],
+                        [
+                            [True, False, False],
+                            [True, True, False],
+                            [True, True, True],
+                        ],
                     ],
                     [
                         [
-                            [False, True, True],
-                            [False, False, True],
-                            [False, False, False],
-                        ]
+                            [True, False, False],
+                            [True, True, False],
+                            [True, True, True],
+                        ],
+                        [
+                            [True, False, False],
+                            [True, True, False],
+                            [True, True, True],
+                        ],
+                    ],
+                ]
+            ),
+        )
+
+    def test_src_padding_masking(self):
+        batch_size, n_heads, seq_len = 2, 2, 3
+        logits = torch.randn(batch_size, n_heads, seq_len, seq_len, dtype=torch.float)
+        src_padding_mask = torch.BoolTensor([[True, True, True], [True, False, False]])
+        self.assertEqual(src_padding_mask.shape, (2, 3))
+        masked_logits = MultiHeadAttention(512, num_heads=n_heads).mask_logits(
+            logits, src_padding_mask=src_padding_mask
+        )
+        torch.testing.assert_close(
+            torch.isinf(masked_logits) == 0,
+            torch.BoolTensor(
+                [
+                    [
+                        [[True, True, True], [True, True, True], [True, True, True],],
+                        [[True, True, True], [True, True, True], [True, True, True],],
+                    ],
+                    [
+                        [
+                            [True, False, False],
+                            [True, False, False],
+                            [True, False, False],
+                        ],
+                        [
+                            [True, False, False],
+                            [True, False, False],
+                            [True, False, False],
+                        ],
                     ],
                 ]
             ),

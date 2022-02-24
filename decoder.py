@@ -10,6 +10,7 @@ from torch.nn.init import xavier_uniform_
 
 from multi_head_attention import MultiHeadAttention
 from positional_encodings import SinusoidEncoding
+from utils import construct_future_mask
 
 
 class TransformerDecoder(nn.Module):
@@ -49,22 +50,21 @@ class TransformerDecoder(nn.Module):
         self,
         input_tokens: torch.IntTensor,
         encoder_hidden_states: torch.Tensor,
-        src_mask: torch.BoolTensor,
-        tgt_mask: Optional[torch.BoolTensor] = None
+        src_padding_mask: Optional[torch.BoolTensor] = None,
+        future_mask: Optional[torch.BoolTensor] = None,
     ):
         """
         The final hidden state for the last token index contains the next token predictive distribution
         """
-        # (n_batches, sequence_length, hidden_dim)
-        # TODO this multiplication seems to result in the first or last output logit to be the first or last voca entry
+        # (batch_size, sequence_length, hidden_dim)
         x = self.embed(input_tokens) * math.sqrt(self.hidden_dim)
         x = self.positional_encoding(x)
         x = self.dropout(x)
 
         for decoder_block in self.decoder_blocks:
-            x = decoder_block(x, encoder_hidden_states, src_mask, tgt_mask)
+            x = decoder_block(x, encoder_hidden_states, src_padding_mask, future_mask)
 
-        # (n_batches, sequence_length, vocab_size)
+        # (batch_size, sequence_length, vocab_size)
         logits = self.output_layer(x)
         output = self.softmax(logits)
         return output
@@ -92,21 +92,24 @@ class TransformerDecoderBlock(nn.Module):
         self,
         x: torch.Tensor,
         encoder_hidden_states: torch.FloatTensor,
-        src_mask: torch.BoolTensor,
-        tgt_mask: Optional[torch.BoolTensor] = None,
+        src_padding_mask: Optional[torch.BoolTensor] = None,
+        future_mask: Optional[torch.BoolTensor] = None,
     ):
         """
-        x is of shape(n_batches, decoded_sequence_length, hidden_dim)
-        encoder_hidden_states is of shape(n_batches, src_sequence_length, hidden_dim)
+        x is of shape(batch_size, decoded_sequence_length, hidden_dim)
+        encoder_hidden_states is of shape(batch_size, src_sequence_length, hidden_dim)
         """
         # Self attention (with future masking during training)
-        output = self.dropout1(self.self_mha.forward(x, mask=tgt_mask))
+
+        output = self.dropout1(self.self_mha.forward(x, future_mask=future_mask))
         x = self.layer_norm1(x + output)
 
         # Cross or encoder-decoder attention
         output = self.dropout2(
             self.cross_mha.forward(
-                x, encoder_hidden_states=encoder_hidden_states, mask=src_mask,
+                x,
+                encoder_hidden_states=encoder_hidden_states,
+                src_padding_mask=src_padding_mask,
             )
         )
         x = self.layer_norm2(x + output)
@@ -128,16 +131,18 @@ class TestTransformerDecoder(unittest.TestCase):
         np.random.seed(seed)
 
         with torch.no_grad():
-            n_batches, seq_len, hidden_dim, vocab_size = 2, 10, 512, 2000
+            batch_size, src_seq_len, hidden_dim, vocab_size = 2, 10, 512, 2000
 
-            # Prepare fake encoder hidden states and attention masks
-            encoder_hidden_states = torch.randn((n_batches, seq_len, hidden_dim)) * math.sqrt(hidden_dim)
-            src_mask = torch.BoolTensor(
+            # Prepare fake encoder hidden states and padding masks
+            # TODO is it required to scale encoder hidden states with this factor?
+            encoder_output = torch.randn(
+                (batch_size, src_seq_len, hidden_dim)
+            ) * math.sqrt(hidden_dim)
+            src_padding_mask = torch.BoolTensor(
                 [[1, 1, 1, 1, 1, 1, 1, 1, 0, 0], [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]]
             )
 
-            # Initialize decoder input with a bos token (0) for each sequence in the batch
-            decoder_input_ids = torch.empty(n_batches, 1, dtype=torch.int).fill_(0)
+            # Initialize the decoder, perform xavier init and set to evaluation mode
             decoder = TransformerDecoder(
                 embedding=torch.nn.Embedding(vocab_size, hidden_dim),
                 hidden_dim=hidden_dim,
@@ -150,27 +155,29 @@ class TestTransformerDecoder(unittest.TestCase):
             decoder._reset_parameters()
             decoder.eval()
 
-            # Perform first forward pass
-            output = decoder.forward(
-                decoder_input_ids, encoder_hidden_states, src_mask, tgt_mask=None
-            )
-            self.assertEqual(output.shape, (n_batches, 1, vocab_size))
-            self.assertEqual(torch.any(output == 1), False)
+            # Prepare decoder input, mask, perform a decoding step, take the argmax over the softmax of the last token
+            # and iteratively feed the input+prediction back in.
+            decoder_input = torch.IntTensor([[0], [0]])
+            future_mask = None
+            for i in range(3):
+                decoder_output = decoder(
+                    decoder_input,
+                    encoder_output,
+                    src_padding_mask=src_padding_mask,
+                    future_mask=future_mask,
+                )
+                predicted_tokens = torch.argmax(
+                    decoder_output[:, -1, :], dim=-1
+                ).unsqueeze(1)
+                decoder_input = torch.cat((decoder_input, predicted_tokens), dim=-1)
+                future_mask = construct_future_mask(decoder_input.shape[1])
 
-            # Append argmax prediction to the decoder input
-            predicted_token_ids = torch.argmax(output[:, -1, :], dim=-1).unsqueeze(-1)
-            decoder_input_ids = torch.cat((decoder_input_ids, predicted_token_ids), dim=-1)
-            self.assertEqual(decoder_input_ids.shape, (n_batches, 2))
-
-            # Perform second forward pass
-            output = decoder.forward(
-                decoder_input_ids, encoder_hidden_states, src_mask, tgt_mask=None
-            )
-            self.assertEqual(output.shape, (n_batches, 2, vocab_size))
-            predicted_token_ids = torch.argmax(output[:, -1, :], dim=-1).unsqueeze(-1)
-            decoder_input_ids = torch.cat((decoder_input_ids, predicted_token_ids), dim=-1)
-            self.assertEqual(torch.all(decoder_input_ids == 0), False)
-            # TODO construct future masking after timestep 1
+                self.assertEqual(decoder_output.shape, (batch_size, i + 1, vocab_size))
+                # softmax entropy should not be 0
+                self.assertEqual(torch.any(decoder_output == 1), False)
+                # token predictions should not all be 0
+                # TODO this is weird, I expect random token indices here
+                self.assertEqual(torch.all(decoder_input == 0), False)
 
 
 if __name__ == "__main__":
