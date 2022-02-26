@@ -19,17 +19,17 @@ WORK IN PROGRESS!
 - Think about title, motivation and framing
 
 # Features:
-- The simplest imaginable Vocabulary class (vocabulary.py)
-- The simplest imaginable (batch) tokenization (vocabulary.py)
-- TransformerEncoder and EncoderBlock class (encoder.py)
-- TransformerDecoder and EncoderBlock class (decoder.py)
-- Transformer class (transformer.py)
-- MultiHeadAttention class with scaled dot product method (multi_head_attention.py)
-- SinusoidEncoding class (positional_encoding.py)
+- The simplest imaginable vocabulary (vocabulary.py)
+- The simplest imaginable (batch) tokenizer (vocabulary.py)
+- TransformerEncoder and EncoderBlock classes (encoder.py)
+- TransformerDecoder and DecoderBlock classes (decoder.py)
+- Transformer main class (transformer.py)
+- MultiHeadAttention class with scaled dot product and masking (multi_head_attention.py)
+- SinusoidEncoding class for positional encoding (positional_encoding.py)
 - Basic unit tests for each class
 - Type checking
 - Code formatted using [black](https://github.com/psf/black)
-- Python 3.9, PyTorch 1.9.1
+- No dependencies except Python 3.9 and PyTorch 1.9.1 (though any version should work). See requirements.txt.
 
 ### Bonus to do
 - Replace examples in the vocabulary unit test.
