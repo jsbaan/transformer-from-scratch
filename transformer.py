@@ -25,7 +25,7 @@ class Transformer(nn.Module):
         padding_idx: int,
         bos_idx: int,
         dropout_p: float,
-        tie_output_to_embedding: Optional[bool] = None
+        tie_output_to_embedding: Optional[bool] = None,
     ):
         super().__init__()
         # Share encoder and decoder embeddings weights
@@ -34,7 +34,14 @@ class Transformer(nn.Module):
             self.embed, hidden_dim, ff_dim, num_heads, num_layers, dropout_p
         )
         self.decoder = TransformerDecoder(
-            self.embed, hidden_dim, ff_dim, num_heads, num_layers, vocab_size, dropout_p, tie_output_to_embedding
+            self.embed,
+            hidden_dim,
+            ff_dim,
+            num_heads,
+            num_layers,
+            vocab_size,
+            dropout_p,
+            tie_output_to_embedding,
         )
 
         self.padding_idx = padding_idx
@@ -73,7 +80,7 @@ class TestTransformer(unittest.TestCase):
                 padding_idx=en_vocab.token2index[en_vocab.PAD],
                 bos_idx=en_vocab.token2index[en_vocab.BOS],
                 dropout_p=0.1,
-                tie_output_to_embedding=True
+                tie_output_to_embedding=True,
             )
             transformer.eval()
 

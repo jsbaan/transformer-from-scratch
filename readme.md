@@ -1,4 +1,5 @@
 [![Transformer unit tests](https://github.com/jsbaan/transformer-from-scratch/actions/workflows/unit-tests.yml/badge.svg)](https://github.com/jsbaan/transformer-from-scratch/actions/workflows/unit-tests.yml)
+<a href="https://github.com/psf/black"><img alt="Code style: black" src="https://img.shields.io/badge/code%20style-black-000000.svg"></a>
 
 # Implementing A Transformer From Scratch
 To get intimately familiar with the nuts and bolts of transformers, I implemented a bare-bone version of the original transformer 
@@ -35,6 +36,3 @@ WORK IN PROGRESS!
 ### Bonus to do
 - Replace examples in the vocabulary unit test.
 - (Multi-)GPU support
-- Run unit tests on each commit using Github Actions 
-  - Refactor unit tests to separate folder and files
-  - Run pylint on codebase
