@@ -1,3 +1,4 @@
+[![Transformer unit tests](https://github.com/jsbaan/transformer-from-scratch/actions/workflows/unit-tests.yml/badge.svg)](https://github.com/jsbaan/transformer-from-scratch/actions/workflows/unit-tests.yml)
 
 # Implementing A Transformer From Scratch
 To get intimately familiar with the nuts and bolts of transformers, I implemented a bare-bone version of the original transformer 
