@@ -36,12 +36,19 @@ class Vocabulary:
         tokens = self.tokenize(sentence, add_special_tokens)
         return [self.token2index[token] for token in tokens]
 
-    def batch_encode(self, sentences: List[str], padding=True, add_special_tokens: bool = False):
+    def batch_encode(
+        self, sentences: List[str], padding=True, add_special_tokens: bool = False
+    ):
         """ Convert a list of string sentences to nested list of token indices. Optionally padding & bos+eos tokens """
-        tokenized_sentences = [self.encode(sentence, add_special_tokens) for sentence in sentences]
+        tokenized_sentences = [
+            self.encode(sentence, add_special_tokens) for sentence in sentences
+        ]
         if padding:
             max_length = max([len(tokens) for tokens in tokenized_sentences])
-            tokenized_sentences = [s + ((max_length-len(s)) * [self.token2index[self.PAD]]) for s in tokenized_sentences]
+            tokenized_sentences = [
+                s + ((max_length - len(s)) * [self.token2index[self.PAD]])
+                for s in tokenized_sentences
+            ]
         return tokenized_sentences
 
 
@@ -108,10 +115,17 @@ class TestVocabulary(unittest.TestCase):
         self.assertEqual(output, [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 5, 7, 14])
 
     def test_batch_encode(self):
-        input_sentences = ["This is one sentence", "This is another, much longer sentence", "Short sentence"]
+        input_sentences = [
+            "This is one sentence",
+            "This is another, much longer sentence",
+            "Short sentence",
+        ]
         vocab = Vocabulary(input_sentences)
         output = vocab.batch_encode(input_sentences, add_special_tokens=False)
-        self.assertEqual(output, [[3, 4, 5, 6, 2, 2, 2], [3, 4, 7, 8, 9, 10, 6], [11, 6, 2, 2, 2, 2, 2]])
+        self.assertEqual(
+            output,
+            [[3, 4, 5, 6, 2, 2, 2], [3, 4, 7, 8, 9, 10, 6], [11, 6, 2, 2, 2, 2, 2]],
+        )
 
 
 if __name__ == "__main__":

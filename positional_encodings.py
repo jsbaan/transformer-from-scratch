@@ -21,7 +21,9 @@ class SinusoidEncoding(torch.nn.Module):
         # Create matrix of [SeqLen, HiddenDim] representing the positional encoding for max_len inputs
         pos_embed = torch.zeros(max_len, hidden_dim)
         position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)
-        div_term = torch.exp(torch.arange(0, hidden_dim, 2).float() * (-math.log(10000.0) / hidden_dim))
+        div_term = torch.exp(
+            torch.arange(0, hidden_dim, 2).float() * (-math.log(10000.0) / hidden_dim)
+        )
         pos_embed[:, 0::2] = torch.sin(position * div_term)
         pos_embed[:, 1::2] = torch.cos(position * div_term)
         pos_embed = pos_embed.unsqueeze(0)
@@ -46,7 +48,16 @@ class TestSinusoidEncoding(unittest.TestCase):
         expected = torch.Tensor(
             [
                 [
-                    [0.0000e00, 1.0000e00, 0.0000e00, 1.0000e00, 0.0000e00, 1.0000e00, 0.0000e00, 1.0000e00],
+                    [
+                        0.0000e00,
+                        1.0000e00,
+                        0.0000e00,
+                        1.0000e00,
+                        0.0000e00,
+                        1.0000e00,
+                        0.0000e00,
+                        1.0000e00,
+                    ],
                     [
                         8.4147e-01,
                         5.4030e-01,
@@ -81,7 +92,16 @@ class TestSinusoidEncoding(unittest.TestCase):
         expected = torch.Tensor(
             [
                 [
-                    [0.0000e00, 1.0000e00, 0.0000e00, 1.0000e00, 0.0000e00, 1.0000e00, 0.0000e00, 1.0000e00],
+                    [
+                        0.0000e00,
+                        1.0000e00,
+                        0.0000e00,
+                        1.0000e00,
+                        0.0000e00,
+                        1.0000e00,
+                        0.0000e00,
+                        1.0000e00,
+                    ],
                     [
                         8.4147e-01,
                         5.4030e-01,
@@ -104,7 +124,16 @@ class TestSinusoidEncoding(unittest.TestCase):
                     ],
                 ],
                 [
-                    [0.0000e00, 1.0000e00, 0.0000e00, 1.0000e00, 0.0000e00, 1.0000e00, 0.0000e00, 1.0000e00],
+                    [
+                        0.0000e00,
+                        1.0000e00,
+                        0.0000e00,
+                        1.0000e00,
+                        0.0000e00,
+                        1.0000e00,
+                        0.0000e00,
+                        1.0000e00,
+                    ],
                     [
                         8.4147e-01,
                         5.4030e-01,

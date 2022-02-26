@@ -26,7 +26,10 @@ class TransformerEncoder(nn.Module):
         self.positional_encoding = SinusoidEncoding(hidden_dim, max_len=5000)
         self.dropout = nn.Dropout(p=dropout_p)
         self.encoder_blocks = nn.ModuleList(
-            [EncoderBlock(hidden_dim, ff_dim, num_heads, dropout_p) for _ in range(num_layers)]
+            [
+                EncoderBlock(hidden_dim, ff_dim, num_heads, dropout_p)
+                for _ in range(num_layers)
+            ]
         )
 
     def _reset_parameters(self):
@@ -34,13 +37,17 @@ class TransformerEncoder(nn.Module):
             if p.dim() > 1:
                 xavier_uniform_(p)
 
-    def forward(self, input_ids: torch.Tensor, src_padding_mask: torch.BoolTensor = None):  # (n_batches, sequence_length)
+    def forward(
+        self, input_ids: torch.Tensor, src_padding_mask: torch.BoolTensor = None
+    ):  # (n_batches, sequence_length)
         # (n_batches, sequence_length, hidden_dim)
         x = self.embed(input_ids) * math.sqrt(self.hidden_dim)
         x = self.positional_encoding(x)
         x = self.dropout(x)
         for encoder_block in self.encoder_blocks:
-            x = encoder_block.forward(x, src_padding_mask=src_padding_mask)  # (n_batches, sequence_length, hidden_dim)
+            x = encoder_block.forward(
+                x, src_padding_mask=src_padding_mask
+            )  # (n_batches, sequence_length, hidden_dim)
         return x
 
 
@@ -49,9 +56,7 @@ class EncoderBlock(nn.Module):
         super().__init__()
         self.self_mha = MultiHeadAttention(hidden_dim, num_heads)
         self.feed_forward = nn.Sequential(
-            nn.Linear(hidden_dim, ff_dim),
-            nn.ReLU(),
-            nn.Linear(ff_dim, hidden_dim),
+            nn.Linear(hidden_dim, ff_dim), nn.ReLU(), nn.Linear(ff_dim, hidden_dim),
         )
 
         self.dropout1 = nn.Dropout(p=dropout_p)
@@ -61,7 +66,9 @@ class EncoderBlock(nn.Module):
 
     def forward(self, x: torch.FloatTensor, src_padding_mask: torch.BoolTensor = None):
         # (n_batches, sequence_length, hidden_dim)
-        output = self.dropout1(self.self_mha.forward(x, src_padding_mask=src_padding_mask))
+        output = self.dropout1(
+            self.self_mha.forward(x, src_padding_mask=src_padding_mask)
+        )
         x = self.layer_norm1(x + output)
 
         output = self.dropout2(self.feed_forward(x))
@@ -83,7 +90,7 @@ class TestTransformerEncoder(unittest.TestCase):
                 ff_dim=2048,
                 num_heads=8,
                 num_layers=2,
-                dropout_p=0.1
+                dropout_p=0.1,
             )
             encoder._reset_parameters()
             encoder.eval()
@@ -113,7 +120,7 @@ class TestTransformerEncoder(unittest.TestCase):
                 ff_dim=2048,
                 num_heads=8,
                 num_layers=2,
-                dropout_p=0.1
+                dropout_p=0.1,
             )
             encoder.eval()
             input_batch = torch.IntTensor(

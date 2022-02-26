@@ -7,9 +7,8 @@ WORK IN PROGRESS!
 
 # To do:
 ### Code
-- The encoder hidden states seem to be too small which somehow causes the decoder to place most of its mass on 0th index for each hidden state for each batch instance. I can fix this by scaling the encoder hidden states with sqrt(hidden_dim) but this should not be happening.
-- Write minimal training loop to test if model can fit a tiny dataset
-  - Optimizer & settings
+- Write minimal training loop to test if model can fit a tiny "copy" dataset
+  - Optimizer, learning rate scheduler, loss, etc.
   - Check whether BOS and EOS tokens should be added to each training sentence; remove this from the tokenization if not.
 
 ### Writing
