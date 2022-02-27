@@ -2,7 +2,6 @@ import re
 import unittest
 
 from typing import List, Optional
-from torch import IntTensor
 
 
 class Vocabulary:
@@ -16,30 +15,54 @@ class Vocabulary:
         for sentence in list_of_sentences:
             self.add_tokens(self.tokenize(sentence))
 
-    def add_tokens(self, tokens: List[str]):
-        """ Adds tokens the vocabulary """
+    def add_tokens(self, tokens: List[str]) -> None:
+        """
+        Adds tokens the vocabulary
+
+        :param tokens:
+        :return:
+        """
         for token in tokens:
             if token not in self.token2index:
                 i = len(self.token2index.items())
                 self.token2index[token] = i
                 self.index2token[i] = token
 
-    def tokenize(self, sentence: str, add_special_tokens: bool = True):
-        """ Split on all tokens and punctuation and adds BOS and EOS token """
+    def tokenize(self, sentence: str, add_special_tokens: bool = True) -> List[str]:
+        """
+        Split on all tokens and punctuation. Optionally adds BOS and EOS tokens.
+
+        :param sentence:
+        :param add_special_tokens:
+        :return: List of string tokens
+        """
         tokens = re.findall(r"\w+|[^\s\w]+", sentence)
         if add_special_tokens:
             tokens = [self.BOS] + tokens + [self.EOS]
         return tokens
 
-    def encode(self, sentence: str, add_special_tokens: bool = True):
-        """ Converts a sentence to a list of token indices in the vocabulary """
+    def encode(self, sentence: str, add_special_tokens: bool = True) -> List[int]:
+        """
+        Converts a string to a list of token indices given the vocabulary
+
+        :param sentence:
+        :param add_special_tokens:
+        :return:
+        """
         tokens = self.tokenize(sentence, add_special_tokens)
         return [self.token2index[token] for token in tokens]
 
     def batch_encode(
         self, sentences: List[str], padding=True, add_special_tokens: bool = False
-    ):
-        """ Convert a list of string sentences to nested list of token indices. Optionally padding & bos+eos tokens """
+    ) -> List[List[int]]:
+        """
+        Convert a list of string sentences to nested list of token indices. Optionally padding & bos+eos tokens
+
+        :param sentences: A list of sentences to be encoded into a batch
+        :param padding: Boolean that allows for padding up to the longest sequence in the batch
+        :param add_special_tokens: Boolean that allows for adding a BOS and EOS token to each sentence in the batch
+        :return: nested list of tokenized sequences
+        """
         tokenized_sentences = [
             self.encode(sentence, add_special_tokens) for sentence in sentences
         ]

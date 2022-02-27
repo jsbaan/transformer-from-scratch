@@ -47,6 +47,7 @@ class Transformer(nn.Module):
         self.padding_idx = padding_idx
         self.bos_idx = bos_idx
         self.max_decoding_length = max_decoding_length
+        self.hidden_dim = hidden_dim
         self._reset_parameters()
 
     def _reset_parameters(self):
