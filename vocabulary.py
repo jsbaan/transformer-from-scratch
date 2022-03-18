@@ -12,6 +12,8 @@ class Vocabulary:
     def __init__(self, list_of_sentences: Optional[List[str]]):
         self.token2index = {self.BOS: 0, self.EOS: 1, self.PAD: 2}
         self.index2token = {v: k for k, v in self.token2index.items()}
+        if not list_of_sentences:
+            return
         for sentence in list_of_sentences:
             self.add_tokens(self.tokenize(sentence))
 

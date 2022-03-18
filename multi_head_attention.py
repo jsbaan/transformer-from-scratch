@@ -43,8 +43,8 @@ class MultiHeadAttention(nn.Module):
 
     def forward(
         self,
-        x: torch.FloatTensor,
-        encoder_hidden_states: Optional[torch.FloatTensor] = None,
+        x: torch.Tensor,
+        encoder_hidden_states: Optional[torch.Tensor] = None,
         src_padding_mask: Optional[torch.BoolTensor] = None,
         future_mask: Optional[torch.BoolTensor] = None,
     ):
@@ -85,7 +85,7 @@ class MultiHeadAttention(nn.Module):
         output = self.o_proj(values)
         return output
 
-    def _self_attention_projection(self, x: torch.FloatTensor):
+    def _self_attention_projection(self, x: torch.Tensor):
         """
         Project x and interpret the result as chunks that represent q, k and v vectors for every head.
         Input x can be encoder or decoder hidden states, depending on which one calls this MHA module.
@@ -101,8 +101,8 @@ class MultiHeadAttention(nn.Module):
 
     def _cross_attention_projection(
         self,
-        encoder_hidden_states: torch.FloatTensor,
-        decoder_hidden_states: torch.FloatTensor,
+        encoder_hidden_states: torch.Tensor,
+        decoder_hidden_states: torch.Tensor,
     ):
         """
         Projects decoder hidden states into query vectors and encoder hidden states into key and value vectors.
@@ -142,9 +142,9 @@ class MultiHeadAttention(nn.Module):
 
     def scaled_dot_product(
         self,
-        q: torch.FloatTensor,
-        k: torch.FloatTensor,
-        v: torch.FloatTensor,
+        q: torch.Tensor,
+        k: torch.Tensor,
+        v: torch.Tensor,
         src_padding_mask: Optional[torch.BoolTensor] = None,
         future_mask: Optional[torch.BoolTensor] = None,
     ):
@@ -170,7 +170,7 @@ class MultiHeadAttention(nn.Module):
 
         # Apply attention mask (for pad tokens and future-masking in cross-attention)
         if src_padding_mask is not None or future_mask is not None:
-            attn_logits = self.mask_logits(attn_logits, src_padding_mask, future_mask)
+            attn_logits = self.mask_logits(attn_logits, src_padding_mask, future_mask)  # type: ignore
 
         # Transform logits to attention probability distribution (one distribution per non-masked token index)
         attention = F.softmax(attn_logits, dim=-1)
@@ -182,7 +182,7 @@ class MultiHeadAttention(nn.Module):
 
     @staticmethod
     def mask_logits(
-        logits: torch.FloatTensor,
+        logits: torch.Tensor,
         src_padding_mask: Optional[torch.BoolTensor] = None,
         future_mask: Optional[torch.BoolTensor] = None,
     ):
@@ -216,7 +216,7 @@ class TestMultiHeadAttention(unittest.TestCase):
         self.assertEqual(attention_scores.shape, (4, 8, 10, 10))
 
         # Each attention distribution should sum up to one
-        expected = torch.FloatTensor([1.0]).repeat((4, 8, 10))
+        expected = torch.Tensor([1.0]).repeat((4, 8, 10))
         torch.testing.assert_close(torch.sum(attention_scores, dim=-1), expected)
 
         self.assertEqual(torch.any(torch.isnan(values)), False)
@@ -240,7 +240,7 @@ class TestMultiHeadAttention(unittest.TestCase):
         self.assertEqual(torch.any(attention_scores[0, :, :, :8] == 0), False)
 
         # Each attention distribution should sum up to one (all values after summing should be 1)
-        expected = torch.FloatTensor([1.0]).repeat((2, 8, 10))
+        expected = torch.Tensor([1.0]).repeat((2, 8, 10))
         torch.testing.assert_close(torch.sum(attention_scores, dim=-1), expected)
 
         # For the second sequence in the batch all attention scores should be nonzero because the mask is all ones

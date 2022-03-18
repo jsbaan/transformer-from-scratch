@@ -23,7 +23,7 @@ class TransformerDecoder(nn.Module):
         num_layers: int,
         vocab_size: int,
         dropout_p: float,
-        tie_output_to_embedding: bool = True,
+        tie_output_to_embedding: Optional[bool] = True,
     ):
         super().__init__()
 

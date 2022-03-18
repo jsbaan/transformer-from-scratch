@@ -39,8 +39,8 @@ def construct_batches(
     :return: A tuple containing two dictionaries. The first represents the batches, the second the attention masks.
     """
     pad_token_id = vocab.token2index[vocab.PAD]
-    batches = {"src": [], "tgt": []}
-    masks = {"src": [], "tgt": []}
+    batches: Dict[str, List] = {"src": [], "tgt": []}
+    masks: Dict[str, List] = {"src": [], "tgt": []}
     for i in range(0, len(corpus), batch_size):
         src_batch = torch.IntTensor(
             vocab.batch_encode(
@@ -62,8 +62,8 @@ def construct_batches(
 
         # Move tensors to gpu; if available
         if device is not None:
-            src_batch = src_batch.to(device)
-            tgt_batch = tgt_batch.to(device)
+            src_batch = src_batch.to(device)  # type: ignore
+            tgt_batch = tgt_batch.to(device)  # type: ignore
             src_padding_mask = src_padding_mask.to(device)
             future_mask = future_mask.to(device)
         batches["src"].append(src_batch)

@@ -2,20 +2,20 @@
 <a href="https://github.com/psf/black"><img alt="Code style: black" src="https://img.shields.io/badge/code%20style-black-000000.svg"></a>
 
 # Implementing A Transformer From Scratch
-To get intimately familiar with the nuts and bolts of transformers, I implemented the original architecture as proposed in [Attention Is All You Need](https://arxiv.org/abs/1706.03762). No dependencies except [PyTorch](https://pytorch.org/get-started/locally/). This repo comes with a blogpost that I wrote about the implementation details that surprised me, and thought were worth highlighting. You can find the blogpost **here**.
+To get intimately familiar with the nuts and bolts of transformers, I implemented the original architecture as proposed in [Attention Is All You Need](https://arxiv.org/abs/1706.03762). This repo comes with a blogpost that I wrote about the implementation details that surprised me, and thought were worth highlighting. You can find the blogpost **here**.
 
 # Features:
-- The simplest imaginable vocabulary (vocabulary.py)
-- The simplest imaginable (batch) tokenizer (vocabulary.py)
-- TransformerEncoder and EncoderBlock classes (encoder.py)
-- TransformerDecoder and DecoderBlock classes (decoder.py)
-- Transformer main class (transformer.py)
-- Train script and example that performs a simply copy task (train.py)
-- MultiHeadAttention class with scaled dot product and masking (multi_head_attention.py)
-- SinusoidEncoding class for positional encoding (positional_encoding.py)
-- Basic unit tests for each class
-- Type checking
-- Code formatting using [black](https://github.com/psf/black)
+- The simplest imaginable vocabulary (vocabulary.py).
+- The simplest imaginable (batch) tokenizer (vocabulary.py).
+- TransformerEncoder and EncoderBlock classes (encoder.py).
+- TransformerDecoder and DecoderBlock classes (decoder.py).
+- Transformer main class (transformer.py).
+- Train script and example that performs a simply copy task (train.py).
+- MultiHeadAttention class with scaled dot product and masking (multi_head_attention.py).
+- SinusoidEncoding class for positional encoding (positional_encoding.py).
+- Basic unit tests for each class. Running a file (e.g. `python encoder.py`) will execute its unit tests.
+- Type hints for every variable of each method. 
+- Code formatting using [black](https://github.com/psf/black).
 - No dependencies except Python 3.9 and PyTorch 1.9.1 (though almost any version should work).
 
 ### Writing
