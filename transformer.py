@@ -63,7 +63,7 @@ class TestTransformer(unittest.TestCase):
         random.seed(seed)
         np.random.seed(seed)
 
-        # Create vocabulary and special token indices given a dummy corpus
+        # Create (shared) vocabulary and special token indices given a dummy corpus
         corpus = [
             "Hello my name is Joris and I was born with the name Joris.",
             "Dit is een Nederlandse zin.",
@@ -95,12 +95,11 @@ class TestTransformer(unittest.TestCase):
             )
             self.assertEqual(torch.any(torch.isnan(encoder_output)), False)
 
-            # Prepare decoder input, mask, perform a decoding step, take the argmax over the softmax of the last token
-            # and iteratively feed the input+prediction back in.
+            # Prepare decoder input and mask and start decoding
             decoder_input = torch.IntTensor(
                 [[transformer.bos_idx], [transformer.bos_idx]]
             )
-            future_mask = construct_future_mask(1)
+            future_mask = construct_future_mask(seq_len=1)
             for i in range(transformer.max_decoding_length):
                 decoder_output = transformer.decoder(
                     decoder_input,
@@ -108,9 +107,12 @@ class TestTransformer(unittest.TestCase):
                     src_padding_mask=src_padding_mask,
                     future_mask=future_mask,
                 )
+                # Take the argmax over the softmax of the last token to obtain the next-token prediction
                 predicted_tokens = torch.argmax(
                     decoder_output[:, -1, :], dim=-1
                 ).unsqueeze(1)
+
+                # Append the prediction to the already decoded tokens and construct the new mask
                 decoder_input = torch.cat((decoder_input, predicted_tokens), dim=-1)
                 future_mask = construct_future_mask(decoder_input.shape[1])
 

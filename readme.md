@@ -4,26 +4,19 @@
 # Implementing A Transformer From Scratch
 To get intimately familiar with the nuts and bolts of transformers, I implemented the original architecture as proposed in [Attention Is All You Need](https://arxiv.org/abs/1706.03762). No dependencies except [PyTorch](https://pytorch.org/get-started/locally/). This repo comes with a blogpost that I wrote about the implementation details that surprised me, and thought were worth highlighting. You can find the blogpost **here**.
 
-WORK IN PROGRESS!
-
 # Features:
 - The simplest imaginable vocabulary (vocabulary.py)
 - The simplest imaginable (batch) tokenizer (vocabulary.py)
 - TransformerEncoder and EncoderBlock classes (encoder.py)
 - TransformerDecoder and DecoderBlock classes (decoder.py)
 - Transformer main class (transformer.py)
+- Train script and example that performs a simply copy task (train.py)
 - MultiHeadAttention class with scaled dot product and masking (multi_head_attention.py)
 - SinusoidEncoding class for positional encoding (positional_encoding.py)
 - Basic unit tests for each class
 - Type checking
-- Code formatted using [black](https://github.com/psf/black)
-- No dependencies except Python 3.9 and PyTorch 1.9.1 (though any version should work).
-
-# To do:
-### Code
-- Write minimal training loop to test if model can fit a tiny "copy" dataset
-  - Optimizer, learning rate scheduler, loss, etc.
-  - Check whether BOS and EOS tokens should be added to each training sentence; remove this from the tokenization if not.
+- Code formatting using [black](https://github.com/psf/black)
+- No dependencies except Python 3.9 and PyTorch 1.9.1 (though almost any version should work).
 
 ### Writing
 - Add details about masking in MHA
@@ -34,4 +27,3 @@ WORK IN PROGRESS!
 
 ### Bonus to do
 - Replace examples in the vocabulary unit test.
-- (Multi-)GPU support
