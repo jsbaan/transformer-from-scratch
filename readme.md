@@ -1,5 +1,6 @@
 [![Transformer unit tests](https://github.com/jsbaan/transformer-from-scratch/actions/workflows/unit-tests.yml/badge.svg)](https://github.com/jsbaan/transformer-from-scratch/actions/workflows/unit-tests.yml)
 <a href="https://github.com/psf/black"><img alt="Code style: black" src="https://img.shields.io/badge/code%20style-black-000000.svg"></a>
+[![Mypy Type Checking](https://github.com/jsbaan/transformer-from-scratch/actions/workflows/mypy-type-checking.yml/badge.svg)](https://github.com/jsbaan/transformer-from-scratch/actions/workflows/mypy-type-checking.yml)
 
 # Implementing A Transformer From Scratch
 To get intimately familiar with the nuts and bolts of transformers, I implemented the original architecture as proposed in [Attention Is All You Need](https://arxiv.org/abs/1706.03762). This repo comes with a blogpost that I wrote about the implementation details that surprised me, and thought were worth highlighting. You can find the blogpost **here**.
