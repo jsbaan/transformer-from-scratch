@@ -42,7 +42,6 @@ class TransformerDecoder(nn.Module):
         # Note: a linear layer multiplies the input with a transpose of the weight matrix, so no need to do that here.
         if tie_output_to_embedding:
             self.output_layer.weight = nn.Parameter(self.embed.weight)
-        self.softmax = nn.Softmax(dim=-1)
 
     def _reset_parameters(self):
         for p in self.parameters():
@@ -69,8 +68,7 @@ class TransformerDecoder(nn.Module):
 
         # (batch_size, sequence_length, vocab_size)
         logits = self.output_layer(x)
-        output = self.softmax(logits)
-        return output
+        return logits
 
 
 class TransformerDecoderBlock(nn.Module):
@@ -137,14 +135,12 @@ class TestTransformerDecoder(unittest.TestCase):
         np.random.seed(seed)
 
         with torch.no_grad():
-            batch_size, src_seq_len, hidden_dim, vocab_size, num_layers, num_heads = (
-                2,
-                10,
-                512,
-                2000,
-                1,
-                8,
-            )
+            batch_size = 2
+            src_seq_len = 10
+            hidden_dim = 512
+            vocab_size = 2000
+            num_layers = 1
+            num_heads = 8
 
             # Prepare fake encoder hidden states and padding masks
             encoder_output = torch.randn((batch_size, src_seq_len, hidden_dim))
@@ -157,16 +153,17 @@ class TestTransformerDecoder(unittest.TestCase):
                 embedding=torch.nn.Embedding(vocab_size, hidden_dim),
                 hidden_dim=hidden_dim,
                 ff_dim=2048,
-                num_heads=8,
-                num_layers=1,
+                num_heads=num_heads,
+                num_layers=num_layers,
                 dropout_p=0.1,
                 vocab_size=vocab_size,
+                tie_output_to_embedding=True,
             )
             decoder._reset_parameters()
             decoder.eval()
 
             # Prepare decoder input, mask, perform a decoding step, take the argmax over the softmax of the last token
-            bos_token_id = 10
+            bos_token_id = 1
             # and iteratively feed the input+prediction back in.
             decoder_input = torch.IntTensor([[bos_token_id], [bos_token_id]])
             future_mask = None
@@ -186,12 +183,17 @@ class TestTransformerDecoder(unittest.TestCase):
                 self.assertEqual(decoder_output.shape, (batch_size, i + 1, vocab_size))
                 # softmax entropy should not be 0
                 self.assertEqual(torch.any(decoder_output == 1), False)
-                # With only one decoder layer the predicted tokens will always be the input token ids
-                # This happens only when the final linear transformation is tied (the transpose of the embedding matrix)
-                # Maybe because the input embedding is barely transformed, and dot product between the final decoder
-                # hidden state with the input embedding vector is the highest because they are still very similar
-                # Scaling up the memory states also avoid this behavior, probably because the vectors change
-                # sufficiently to randomize the argmax again.
+                """
+                With only one decoder layer the predicted tokens will always be the input token ids. This happens
+                only when the final linear transformation is tied to the (transpose of) the embedding matrix.
+                Maybe because the input embedding is barely transformed (residual connections). This results in
+                the highest dot product between its final "contextualized" embedding and the original embedding vector
+                in the pre-softmax weight matrix (i.e. embedding matrix) - because they are still very similar.
+                This can be avoided by 1) scaling up the memory states - probably because this adds sufficient random
+                noise through cross-attention to the contextualised embedding to divergence from the input embedding.
+                2) increasing the number of layers - again adding more and more "noise" or 3) removing the last
+                residual connection after the feed forward layers
+                """
                 self.assertEqual(torch.all(decoder_input == bos_token_id), True)
 
     def test_multi_layer_transformer_decoder_inference(self):
@@ -204,7 +206,10 @@ class TestTransformerDecoder(unittest.TestCase):
         np.random.seed(seed)
 
         with torch.no_grad():
-            batch_size, src_seq_len, hidden_dim, vocab_size = 2, 10, 512, 2000
+            batch_size = 2
+            src_seq_len = 10
+            hidden_dim = 512
+            vocab_size = 2000
 
             # Prepare fake encoder hidden states and padding masks
             encoder_output = torch.randn((batch_size, src_seq_len, hidden_dim))
@@ -221,6 +226,7 @@ class TestTransformerDecoder(unittest.TestCase):
                 num_layers=6,
                 dropout_p=0.1,
                 vocab_size=vocab_size,
+                tie_output_to_embedding=False,
             )
             decoder._reset_parameters()
             decoder.eval()
