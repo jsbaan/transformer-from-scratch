@@ -1,5 +1,5 @@
 import unittest
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Optional
 
 import torch
 
@@ -25,6 +25,7 @@ def construct_batches(
     batch_size: int,
     src_lang_key: str,
     tgt_lang_key: str,
+    device: Optional[torch.device] = None,
 ) -> Tuple[Dict[str, List[torch.Tensor]], Dict[str, List[torch.Tensor]]]:
     """
     Constructs batches given a corpus.
@@ -34,6 +35,7 @@ def construct_batches(
     :param batch_size:
     :param src_lang_key: The source language key is a string that the source sequences are keyed under. E.g. "en"
     :param tgt_lang_key: The target language key is a string that the target sequences are keyed under. E.g. "nl"
+    :param device: whether or not to move tensors to gpu
     :return: A tuple containing two dictionaries. The first represents the batches, the second the attention masks.
     """
     pad_token_id = vocab.token2index[vocab.PAD]
@@ -57,6 +59,13 @@ def construct_batches(
 
         src_padding_mask = src_batch != pad_token_id
         future_mask = construct_future_mask(tgt_batch.shape[-1])
+
+        # Move tensors to gpu; if available
+        if device is not None:
+            src_batch = src_batch.to(device)
+            tgt_batch = tgt_batch.to(device)
+            src_padding_mask = src_padding_mask.to(device)
+            future_mask = future_mask.to(device)
         batches["src"].append(src_batch)
         batches["tgt"].append(tgt_batch)
         masks["src"].append(src_padding_mask)
