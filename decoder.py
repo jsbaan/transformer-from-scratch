@@ -127,7 +127,7 @@ class TransformerDecoderBlock(nn.Module):
 class TestTransformerDecoder(unittest.TestCase):
     def test_one_layer_transformer_decoder_inference(self):
         """
-        Test two forward passes, simulating two inference decoding steps
+        Test two forward passes, simulating two greedy decoding inference steps
         """
         seed = 0
         torch.manual_seed(seed)

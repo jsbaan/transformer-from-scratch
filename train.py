@@ -58,7 +58,7 @@ def train(
             # tgt_batch[tgt_batch == transformer.padding_idx] = -100
 
             # Compute the average cross-entropy loss over all next-token predictions at each index i given [1, ..., i]
-            # for the entire batch
+            # for the entire batch. Note that the original paper uses label smoothing (I was too lazy).
             batch_loss = criterion(
                 decoder_output.contiguous().permute(0, 2, 1),
                 tgt_batch.contiguous().long(),
