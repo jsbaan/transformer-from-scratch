@@ -116,23 +116,18 @@ class MultiHeadAttention(nn.Module):
         batch_size, src_sequence_length, hidden_dim = encoder_hidden_states.shape
         batch_size, tgt_sequence_length, hidden_dim = decoder_hidden_states.shape
 
-        # Split weight matrix and bias
+        # Split weight matrix
         w_q, w_kv = self.qkv_proj.weight.split([hidden_dim, 2 * hidden_dim])
-        b_q, b_kv = (
-            self.qkv_proj.bias.split([hidden_dim, 2 * hidden_dim])
-            if self.qkv_proj.bias is not None
-            else (None, None)
-        )
 
         # Project encoder_hidden_states into k's, and v's
         k, v = (
-            F.linear(input=encoder_hidden_states, weight=w_kv, bias=b_kv)
+            F.linear(input=encoder_hidden_states, weight=w_kv)
             .reshape(batch_size, src_sequence_length, self.num_heads, 2 * self.qkv_dim)
             .chunk(2, dim=-1)
         )
 
         # Project decoder hidden states into q's
-        q = F.linear(input=decoder_hidden_states, weight=w_q, bias=b_q).reshape(
+        q = F.linear(input=decoder_hidden_states, weight=w_q).reshape(
             batch_size, tgt_sequence_length, self.num_heads, self.qkv_dim
         )
 
