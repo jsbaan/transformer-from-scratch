@@ -30,16 +30,14 @@ class MultiHeadAttention(nn.Module):
         self.hidden_dim = hidden_dim
         self.num_heads = num_heads
 
-        self.qkv_proj = nn.Linear(hidden_dim, 3 * num_heads * self.qkv_dim)
-        self.o_proj = nn.Linear(num_heads * self.qkv_dim, hidden_dim)
+        self.qkv_proj = nn.Linear(hidden_dim, 3 * num_heads * self.qkv_dim, bias=False)
+        self.o_proj = nn.Linear(num_heads * self.qkv_dim, hidden_dim, bias=False)
         self._reset_parameters()
 
     def _reset_parameters(self):
         """ Weight initialization taken from the UvA DL1 PyTorch Transformer tutorial. """
         nn.init.xavier_uniform_(self.qkv_proj.weight)
-        self.qkv_proj.bias.data.fill_(0)
         nn.init.xavier_uniform_(self.o_proj.weight)
-        self.o_proj.bias.data.fill_(0)
 
     def forward(
         self,
