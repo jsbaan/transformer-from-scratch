@@ -31,8 +31,8 @@ def construct_batches(
     Constructs batches given a corpus.
 
     :param corpus: The input corpus is a list of aligned source and target sequences, packed in a dictionary.
-    :param vocab:
-    :param batch_size:
+    :param vocab: The vocabulary object.
+    :param batch_size: The number of sequences in a batch
     :param src_lang_key: The source language key is a string that the source sequences are keyed under. E.g. "en"
     :param tgt_lang_key: The target language key is a string that the target sequences are keyed under. E.g. "nl"
     :param device: whether or not to move tensors to gpu

@@ -39,15 +39,23 @@ class TransformerEncoder(nn.Module):
 
     def forward(
         self, input_ids: torch.Tensor, src_padding_mask: torch.BoolTensor = None
-    ):  # (n_batches, sequence_length)
-        # (n_batches, sequence_length, hidden_dim)
-        x = self.embed(input_ids) * math.sqrt(self.hidden_dim)
+    ):
+        """
+        Performs one encoder forward pass given input token ids and an optional attention mask.
+
+        N = batch size
+        S = source sequence length
+        E = embedding dimensionality
+
+        :param input_ids: Tensor containing input token ids. Shape: (N, S)
+        :param src_padding_mask: An attention mask to ignore pad-tokens in the source input. Shape (N, S)
+        :return: The encoder's final (contextualized) token embeddings. Shape: (N, S, E)
+        """
+        x = self.embed(input_ids) * math.sqrt(self.hidden_dim)  # (N, S, E)
         x = self.positional_encoding(x)
         x = self.dropout(x)
         for encoder_block in self.encoder_blocks:
-            x = encoder_block.forward(
-                x, src_padding_mask=src_padding_mask
-            )  # (n_batches, sequence_length, hidden_dim)
+            x = encoder_block.forward(x, src_padding_mask=src_padding_mask)
         return x
 
 
@@ -65,7 +73,17 @@ class EncoderBlock(nn.Module):
         self.layer_norm2 = nn.LayerNorm(hidden_dim)
 
     def forward(self, x: torch.FloatTensor, src_padding_mask: torch.BoolTensor = None):
-        # (n_batches, sequence_length, hidden_dim)
+        """
+        Performs one encoder *block* forward pass given the previous block's output and an optional attention mask.
+
+        N = batch size
+        S = source sequence length
+        E = embedding dimensionality
+
+        :param x: Tensor containing the output of the previous encoder block. Shape: (N, S, E)
+        :param src_padding_mask: An attention mask to ignore pad-tokens in the source input. Shape (N, S)
+        :return: Updated intermediate encoder (contextualized) token embeddings. Shape: (N, S, E)
+        """
         output = self.dropout1(
             self.self_mha.forward(x, src_padding_mask=src_padding_mask)
         )

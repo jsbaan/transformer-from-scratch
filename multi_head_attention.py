@@ -11,20 +11,7 @@ from utils import construct_future_mask
 class MultiHeadAttention(nn.Module):
     def __init__(self, hidden_dim: int, num_heads: int):
         super().__init__()
-        """
-        Each element in x @ W_proj will be the dot product between a row in x and a columns in W. This means that 
-        multiplying input x with a (hidden_dim, 3*hidden_dim) matrix will be identical to performing three matrix 
-        multiplications with three separate W matrices of (hidden_dim, hidden_dim). This in turn is identical to 
-        performing, 8 separate matrix multiplications of (hidden_dim, hidden_dim/8). In other words; each extra column 
-        in will result in another linear combination (projection) of each row (embedding) in x. 
 
-        Example (discarding batch size): d_x = (10, 512) and d_W_proj = (512, 3*512). This results in 
-        3 times 512 linear combinations of each row in x. We can further interpret each block of 512 as 8 blocks of 64
-        that represent the attention heads.
-
-        Long story short: this projection can be interpreted as performing a different projection q, k and v, and then
-        for each of the 8 heads in q, k and v.
-        """
         assert hidden_dim % num_heads == 0
         self.qkv_dim = hidden_dim // num_heads
         self.hidden_dim = hidden_dim
@@ -47,20 +34,26 @@ class MultiHeadAttention(nn.Module):
         future_mask: Optional[torch.BoolTensor] = None,
     ):
         """
-        Perform multi-head attention using one projection matrix.
-        Self attention is performed when encoder_hidden_states is None.
-        Otherwise, cross-attention is performed
+        Perform multi-head attention using one projection matrix. Self attention is performed when encoder_hidden_states
+        is None, in which case input x represents encoder token embeddings. Otherwise, cross-attention is performed.
         In that case, input x represents the decoder hidden states.
 
-        :param x: (batch_size, sequence_length, hidden_dim)
-        :param encoder_hidden_states: (batch_size, src_sequence_length, hidden_dim)
-        :param src_padding_mask: Dim (batch_size, src_sequence_length).Used for encoder self-attention and
-            cross-attention to handle pad tokens. Masks all incoming "connections" or "logits" from any token position
-            to any pad token in a sequence.
-        :param future_mask: Dim (tgt_sequence_length, tgt_sequence_length). Used for decoder self-attention to avoid
-            any token i attending to a token >i, i.e. "peaking".
-        :return:
+        N = batch size
+        S = source sequence length
+        T = target sequence length
+        E = embedding dimensionality
+
+        :param x: Either encoder or decoder hidden states. Shape: (N, S or T, E)
+        :param encoder_hidden_states: Encoder hidden states to perform cross-attention with. Shape: (N, S, E)
+        :param src_padding_mask: Used for encoder self-attention and cross-attention to handle pad tokens.
+        Masks all incoming "connections" or "logits" from any token position to any pad token in a sequence.
+        Shape: (N, S)
+        :param future_mask: Used for decoder self-attention to avoid any token i attending to a token >i, i.e. "peaking"
+        Shape: (T, T).
+        :return: Contextualized token embeddings. Shape depends on attention type. (N, S, E) for encoder self-attention
+        and decoder cross-attention. (N, T, E) for decoder self-attention.
         """
+
         batch_size, sequence_length, hidden_dim = x.size()
 
         if encoder_hidden_states is None:
@@ -88,8 +81,14 @@ class MultiHeadAttention(nn.Module):
         Project x and interpret the result as chunks that represent q, k and v vectors for every head.
         Input x can be encoder or decoder hidden states, depending on which one calls this MHA module.
 
-        :param x: Encoder or decoder hidden states. (batch_size, seq_len, hidden_dim)
-        :return: query, key and value vectors. (batch_size, seq_len, num_heads, hidden_dim // num_heads)
+        N = batch size
+        S = source sequence length
+        T = target sequence length
+        E = embedding dimensionality
+        H = number of heads
+
+        :param x: Encoder or decoder hidden states. (N, S or T, E)
+        :return: query, key and value vectors. (N, S or T, H, E/H)
         """
         batch_size, sequence_length, _ = x.shape
         qkv = self.qkv_proj(x)
@@ -98,9 +97,7 @@ class MultiHeadAttention(nn.Module):
         return q, k, v
 
     def _cross_attention_projection(
-        self,
-        encoder_hidden_states: torch.Tensor,
-        decoder_hidden_states: torch.Tensor,
+        self, encoder_hidden_states: torch.Tensor, decoder_hidden_states: torch.Tensor,
     ):
         """
         Projects decoder hidden states into query vectors and encoder hidden states into key and value vectors.
@@ -108,10 +105,15 @@ class MultiHeadAttention(nn.Module):
         then interpret as heads and qkv vectors. Thus we can simply split the weight matrix and project the decoder
         hidden states x into q separately from projecting the encoder_hidden_states into k and v.
 
-        :param encoder_hidden_states: (batch_size, src_seq_len, hidden_dim)
-        :param decoder_hidden_states: (batch_size, tgt_seq_len, hidden_dim)
-        :return: query vector (batch_size, tgt_seq_len, num_heads, qkv_dim) and
-            key and value vectors (batch_size, src_seq_len, num_heads, qkv_dim)
+        N = batch size
+        S = source sequence length
+        T = target sequence length
+        E = embedding dimensionality
+        H = number of heads
+
+        :param encoder_hidden_states: Shape: (N, S, E)
+        :param decoder_hidden_states: Shape: (N, T, E)
+        :return: query vector: Shape: (N, T, H, E/H) and key and value vectors both (N, S, H, E/H)
         """
         batch_size, src_sequence_length, hidden_dim = encoder_hidden_states.shape
         batch_size, tgt_sequence_length, hidden_dim = decoder_hidden_states.shape
@@ -145,12 +147,21 @@ class MultiHeadAttention(nn.Module):
         For cross-attention, the sequence length of q and (k,v) may differ as q is projected from decoder hidden states
         and kv from encoder hidden states.
 
-        :param q: (batch_size, num_heads, seq_len, qkv_dim)
-        :param k: (batch_size, num_heads, seq_len, qkv_dim)
-        :param v: (batch_size, num_heads, seq_len, qkv_dim)
-        :param src_padding_mask: (batch_size, src_seq_len)
-        :param future_mask: (tgt_seq_len, tgt_seq_len)
-        :return: values (batch_size, num_heads, seq_len, qkv_dim), attention (batch_size, num_heads, seq_len, seq_len)
+        N = batch size
+        S = source sequence length
+        T = target sequence length
+        E = embedding dimensionality
+        H = number of heads
+
+        :param q: Tensor stacking query vectors for all tokens and all heads. Shape: (N, H, S or T, E/H)
+        :param k: Tensor stacking key vectors for all tokens and all heads. Shape: (N, H, S or T, E/H)
+        :param v: Tensor stacking value vectors for all tokens and all heads. Shape: (N, H, S or T, E/H)
+        :param src_padding_mask: Used for encoder self-attention and cross-attention to handle pad tokens.
+        Masks all incoming "connections" or "logits" from any token position to any pad token in a sequence.
+        Shape: (N, S)
+        :param future_mask: Used for decoder self-attention to avoid any token i attending to a token >i, i.e. "peaking"
+        Shape: (T, T).
+        :return: values (N, H, S or T, E/H), attention scores (N, H, S or T, S or T)
         """
 
         # Compute attention logits. Dot product between each query and key vector, through one matrix multiplication.
@@ -182,10 +193,19 @@ class MultiHeadAttention(nn.Module):
         """
         Reshape masks to fit the shape of the logits and set all indices with "False" to -inf
 
-        :param logits: (batch_size, num_heads, seq_length, seq_length)
-        :param src_padding_mask: (batch_size, src_seq_len)
-        :param future_mask: (tgt_seq_len, tgt_seq_len)
-        :return: masked_logits (batch_size, num_heads, seq_length, seq_length)
+        N = batch size
+        S = source sequence length
+        T = target sequence length
+        E = embedding dimensionality
+        H = number of heads
+
+        :param logits: Tensor containing attention logits. Shape: (N, H, S or T, S or T)
+        :param src_padding_mask: Used for encoder self-attention and cross-attention to handle pad tokens.
+        Masks all incoming "connections" or "logits" from any token position to any pad token in a sequence.
+        Shape: (N, S)
+        :param future_mask: Used for decoder self-attention to avoid any token i attending to a token >i, i.e. "peaking"
+        Shape: (T, T).
+        :return: masked_logits (N, H, S or T, S or T)
         """
         if src_padding_mask is not None:
             masked_logits = logits.masked_fill(

@@ -22,7 +22,7 @@ class Vocabulary:
         Adds tokens the vocabulary
 
         :param tokens:
-        :return:
+        :return: None
         """
         for token in tokens:
             if token not in self.token2index:
@@ -47,9 +47,9 @@ class Vocabulary:
         """
         Converts a string to a list of token indices given the vocabulary
 
-        :param sentence:
-        :param add_special_tokens:
-        :return:
+        :param sentence: a string representing a sentence
+        :param add_special_tokens: whether or not to add a bos and eos token
+        :return: list of token indices
         """
         tokens = self.tokenize(sentence, add_special_tokens)
         return [self.token2index[token] for token in tokens]
@@ -58,7 +58,7 @@ class Vocabulary:
         self, sentences: List[str], padding=True, add_special_tokens: bool = False
     ) -> List[List[int]]:
         """
-        Convert a list of string sentences to nested list of token indices. Optionally padding & bos+eos tokens
+        Convert a list of string sentences to nested list of token indices. Optionally adds padding & bos+eos tokens
 
         :param sentences: A list of sentences to be encoded into a batch
         :param padding: Boolean that allows for padding up to the longest sequence in the batch

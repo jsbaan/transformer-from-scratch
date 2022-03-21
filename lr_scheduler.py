@@ -3,7 +3,7 @@ import torch
 
 class NoamOpt:
     """
-    Taken from https://nlp.seas.harvard.edu/2018/04/03/attention.html#hardware-and-schedule
+    Copied from https://nlp.seas.harvard.edu/2018/04/03/attention.html#hardware-and-schedule
 
     A wrapper class for the Adam optimizer (or others) that implements learning rate scheduling.
 

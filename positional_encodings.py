@@ -6,7 +6,7 @@ import torch
 
 class SinusoidEncoding(torch.nn.Module):
     """
-    Cheated by looking at
+    Mostly copied from
     https://uvadlc-notebooks.readthedocs.io/en/latest/tutorial_notebooks/tutorial6/Transformers_and_MHAttention.html
     """
 
@@ -34,6 +34,15 @@ class SinusoidEncoding(torch.nn.Module):
         self.register_buffer("pos_embed", pos_embed, persistent=False)
 
     def forward(self, x):
+        """
+        Adds positional embeddings to token embeddings.
+        N = batch size
+        L = sequence length
+        E = embedding dim
+
+        :param x: token embeddings. Shape: (N, L, E)
+        :return: token_embeddings + positional embeddings. Shape: (N, L, E)
+        """
         x = x + self.pos_embed[:, : x.size(1)]
         return x
 

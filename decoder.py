@@ -44,6 +44,7 @@ class TransformerDecoder(nn.Module):
             self.output_layer.weight = nn.Parameter(self.embed.weight)
 
     def _reset_parameters(self):
+        """ Perform xavier weight initialization"""
         for p in self.parameters():
             if p.dim() > 1:
                 xavier_uniform_(p)
@@ -56,7 +57,18 @@ class TransformerDecoder(nn.Module):
         future_mask: Optional[torch.BoolTensor] = None,
     ):
         """
-        The final hidden state for the last token index contains the next token predictive distribution
+        Performs one decoder forward pass given encoder hidden states, the decoder input tokens and attention masks.
+        N = batch size
+        S = source sequence length
+        T = target sequence length
+        E = embedding dimensionality
+        V = vocabulary size
+
+        :param input_tokens: Decoder input tokens. Shape: (N, T)
+        :param encoder_hidden_states: The encoder's final (contextualized) token embeddings. Shape: (N, S, E)
+        :param src_padding_mask: An attention mask to ignore pad-tokens in the source input. Shape (N, S)
+        :param future_mask: An attention mask to ignore future-tokens in the target input. Shape (T, T)
+        :return: Unnormalized logits over the vocabulary for every token in the batch. Shape (N, T, V)
         """
         # (batch_size, sequence_length, hidden_dim)
         x = self.embed(input_tokens) * math.sqrt(self.hidden_dim)
@@ -96,14 +108,23 @@ class TransformerDecoderBlock(nn.Module):
         src_padding_mask: Optional[torch.BoolTensor] = None,
         future_mask: Optional[torch.BoolTensor] = None,
     ):
+        """
+        Performs one decoder *block* forward pass given final encoder hidden states, the previous block's output, and
+        attention masks.
 
+        N = batch size
+        S = source sequence length
+        T = target sequence length
+        E = embedding dimensionality
+        V = vocabulary size
+
+        :param x: Previous decoder block's output. Shape: (N, T, E)
+        :param encoder_hidden_states: The encoder's final (contextualized) token embeddings. Shape: (N, S, E)
+        :param src_padding_mask: An attention mask to ignore pad-tokens in the source input. Shape (N, S)
+        :param future_mask: An attention mask to ignore future-tokens in the target input. Shape (T, T)
+        :return: Updated, contextualized token embeddings. Shape (N, T, E)
         """
-        :param x: (batch_size, decoded_sequence_length, hidden_dim)
-        :param encoder_hidden_states: (batch_size, src_sequence_length, hidden_dim)
-        :param src_padding_mask: (batch_size, src_sequence_length)
-        :param future_mask: (tgt_sequence_length, tgt_sequence_length)
-        :return:
-        """
+
         # Self attention (with future masking during training)
         output = self.dropout1(self.self_mha.forward(x, future_mask=future_mask))
         x = self.layer_norm1(x + output)
@@ -186,13 +207,14 @@ class TestTransformerDecoder(unittest.TestCase):
                 """
                 With only one decoder layer the predicted tokens will always be the input token ids. This happens
                 only when the final linear transformation is tied to the (transpose of) the embedding matrix.
-                Maybe because the input embedding is barely transformed (residual connections). This results in
+                This is because the input embedding is barely transformed due to residual connections. This results in
                 the highest dot product between its final "contextualized" embedding and the original embedding vector
                 in the pre-softmax weight matrix (i.e. embedding matrix) - because they are still very similar.
                 This can be avoided by 1) scaling up the memory states - probably because this adds sufficient random
                 noise through cross-attention to the contextualised embedding to divergence from the input embedding.
                 2) increasing the number of layers - again adding more and more "noise" or 3) removing the last
-                residual connection after the feed forward layers
+                residual connection after the feed forward layers. In practice, however, this is not an issue. Training
+                will take care of it.
                 """
                 self.assertEqual(torch.all(decoder_input == bos_token_id), True)
 

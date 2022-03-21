@@ -4,9 +4,11 @@
 
 # Implementing A Transformer From Scratch
 To get intimately familiar with the nuts and bolts of transformers I decided to implement the original architecture from [Attention Is All You Need](https://arxiv.org/abs/1706.03762).
-This repo accompanies the blogpost [Lessons Learned From Coding A Transformer: Bridging the Gap Between Intuition and Implementation](https://google.com). I wrote this blogpost to highlight some of the things that I learned from implementing a transformer from scratch that I found particularly surprising or insightful.
+
+This repo accompanies the blogpost [Lessons Learned From Coding A Transformer: Bridging the Gap Between Intuition and Implementation](https://google.com). I wrote this blogpost to highlight things that I learned from implementing a transformer from scratch that I found particularly surprising or insightful.
 
 # Features:
+This repo contains the following features: 
 - The simplest imaginable vocabulary (vocabulary.py).
 - The simplest imaginable (batch) tokenizer (vocabulary.py).
 - TransformerEncoder and EncoderBlock classes (encoder.py).

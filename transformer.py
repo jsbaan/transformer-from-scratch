@@ -28,7 +28,8 @@ class Transformer(nn.Module):
         tie_output_to_embedding: Optional[bool] = None,
     ):
         super().__init__()
-        # Share encoder and decoder embeddings weights
+        # Because the encoder embedding, and decoder embedding and decoder pre-softmax transformeation share embeddings
+        # weights, initialize one here and pass it on.
         self.embed = nn.Embedding(vocab_size, hidden_dim, padding_idx=padding_idx)
         self.encoder = TransformerEncoder(
             self.embed, hidden_dim, ff_dim, num_heads, num_layers, dropout_p

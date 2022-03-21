@@ -23,6 +23,7 @@ def train(
 ):
     """
     Main training loop
+
     :param transformer: the transformer model
     :param scheduler: the learning rate scheduler
     :param criterion: the optimization criterion (loss function)
@@ -109,10 +110,13 @@ class TestTransformerTraining(unittest.TestCase):
         # Note: the original paper uses byte pair encodings, we simply take each word to be a token.
         corpus = ["These are the tokens that will end up in our vocabulary"]
         vocab = Vocabulary(corpus)
-        vocab_size = len(list(vocab.token2index.keys()))  # 14 tokens including bos, eos and pad
+        vocab_size = len(
+            list(vocab.token2index.keys())
+        )  # 14 tokens including bos, eos and pad
         valid_tokens = list(vocab.token2index.keys())[3:]
         corpus += [
-            " ".join(choices(valid_tokens, k=n_tokens_in_batch)) for _ in range(synthetic_corpus_size)
+            " ".join(choices(valid_tokens, k=n_tokens_in_batch))
+            for _ in range(synthetic_corpus_size)
         ]
 
         # Construct src-tgt aligned input batches (note: the original paper uses dynamic batching based on tokens)
