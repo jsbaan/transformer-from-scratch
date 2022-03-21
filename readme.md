@@ -17,12 +17,5 @@ To get intimately familiar with the nuts and bolts of transformers, I implemente
 - Basic unit tests for each class. Running a file (e.g. `python encoder.py`) will execute its unit tests.
 - Type checking using [mypy](https://mypy.readthedocs.io/en/stable/). 
 - Code formatting using [black](https://github.com/psf/black).
-- No dependencies except Python 3.9 and PyTorch 1.9.1 (though almost any version should work).
-
-### Writing
-- Add details about masking in MHA
-- Add details about the formal meaning of the word projection
-- Write about relation between transformer and popular models such as bert or gpt
-
-### Bonus to do
-- Replace examples in the vocabulary unit test.
+- Automatic execution of unit tests and type checks using Github Actions.
+- No dependencies except Python 3.9 and PyTorch 1.9.1 (though basically any version should work).

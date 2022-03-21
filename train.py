@@ -154,7 +154,7 @@ class TestTransformerTraining(unittest.TestCase):
             transformer, scheduler, criterion, batches, masks, n_epochs=n_epochs
         )
         self.assertEqual(latest_batch_loss.item() <= 0.01, True)
-        self.assertEqual(latest_batch_accuracy >= 0.9, True)
+        self.assertEqual(latest_batch_accuracy >= 0.99, True)
 
 
 if __name__ == "__main__":
