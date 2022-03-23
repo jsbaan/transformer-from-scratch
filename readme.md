@@ -9,7 +9,7 @@ This repo accompanies the blogpost [Implementing a Transformer From Scratch: 7 T
 
 # Features:
 This repo contains the following features: 
-- The simplest imaginable vocabulary ([vocabulary.py](https://github.com/jsbaan/transformer-from-scratch/blob/main/decoder.py)).
+- The simplest imaginable vocabulary ([vocabulary.py](https://github.com/jsbaan/transformer-from-scratch/blob/main/vocabulary.py)).
 - The simplest imaginable (batch) tokenizer ([vocabulary.py](https://github.com/jsbaan/transformer-from-scratch/blob/main/vocabulary.py)).
 - TransformerEncoder and EncoderBlock classes ([encoder.py](https://github.com/jsbaan/transformer-from-scratch/blob/main/encoder.py)).
 - TransformerDecoder and DecoderBlock classes ([decoder.py](https://github.com/jsbaan/transformer-from-scratch/blob/main/decoder.py)).
