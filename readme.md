@@ -16,7 +16,7 @@ This repo contains the following features:
 - Transformer main class ([transformer.py](https://github.com/jsbaan/transformer-from-scratch/blob/main/transformer.py)).
 - Train script with a unit test that (over)fits a synthetic copy dataset ([train.py](https://github.com/jsbaan/transformer-from-scratch/blob/main/train.py)).
 - MultiHeadAttention class with scaled dot product and masking ([multi_head_attention.py](https://github.com/jsbaan/transformer-from-scratch/blob/main/multi_head_attention.py)).
-- SinusoidEncoding class for positional encodings ([positional_encodings.py](https://github.com/jsbaan/transformer-from-scratch/blob/main/positional_encoding.py)).
+- SinusoidEncoding class for positional encodings ([positional_encodings.py](https://github.com/jsbaan/transformer-from-scratch/blob/main/positional_encodings.py)).
 - Utility functions to construct masks and batches ([utils.py](https://github.com/jsbaan/transformer-from-scratch/blob/main/utils.py)).
 - Learning rate scheduler ([lr_scheduler.py](https://github.com/jsbaan/transformer-from-scratch/blob/main/lr_scheduler.py)).
 - Basic unit tests for each class. Running a file (e.g. `python encoder.py`) will execute its unit tests.
