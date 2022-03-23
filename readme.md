@@ -7,8 +7,10 @@ To get intimately familiar with the nuts and bolts of transformers I decided to 
 
 This repo accompanies the blogpost [Implementing a Transformer From Scratch: 7 Things You Didn't Know About the Transformer](https://jorisbaan.medium.com/7-things-you-didnt-know-about-the-transformer-a70d93ced6b2). I wrote this blogpost to highlight things that I learned in the process and that I found particularly surprising or insightful.
 
+Each python file contains one or more classes related to the transformer. Additionally, at the bottom of each file you can find unit tests for that class. These unit tests are executed simply by running the file (e.g. `python transformer.py`), and are run on every push to this repo using Github Actions. They serve two purposes. First, they are sanity checks that verify whether the class is doing what it should. Second, they are examples for how to use each class.
+
 # Features:
-This repo contains the following features: 
+This repo contains the following files and features: 
 - The simplest imaginable vocabulary ([vocabulary.py](https://github.com/jsbaan/transformer-from-scratch/blob/main/vocabulary.py)).
 - The simplest imaginable (batch) tokenizer ([vocabulary.py](https://github.com/jsbaan/transformer-from-scratch/blob/main/vocabulary.py)).
 - TransformerEncoder and EncoderBlock classes ([encoder.py](https://github.com/jsbaan/transformer-from-scratch/blob/main/encoder.py)).
