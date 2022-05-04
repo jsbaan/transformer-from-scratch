@@ -7,7 +7,7 @@ To get intimately familiar with the nuts and bolts of transformers I decided to 
 
 This repo accompanies the blogpost [Implementing a Transformer From Scratch: 7 surprising things you might not know about the Transformer](https://jorisbaan.medium.com/7-things-you-didnt-know-about-the-transformer-a70d93ced6b2). I wrote this blogpost to highlight things that I learned in the process and that I found particularly surprising or insightful.
 
-## Structure
+# Structure
 Each Python file contains one or more classes related to the transformer. Additionally, at the bottom of each file you can find unit tests for that class. These unit tests are executed simply by running the file (e.g. `python transformer.py`), and are run on every push to this repo using Github Actions. They serve two purposes. First, they are sanity checks that verify whether the class is doing what it should. Second, they are examples for how to use each class.
 
 In practice, of course, please do use the [official PyTorch implementation](https://pytorch.org/docs/stable/generated/torch.nn.Transformer.html). This repo is by no means meant as an alternative: it is meant to help me (and hopefully you) better understand how transformers are actually implemented.
