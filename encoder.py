@@ -1,5 +1,6 @@
 import unittest
 import math
+from typing import Optional
 
 import torch
 from torch import nn
@@ -38,7 +39,7 @@ class TransformerEncoder(nn.Module):
                 xavier_uniform_(p)
 
     def forward(
-        self, input_ids: torch.Tensor, src_padding_mask: torch.BoolTensor = None
+        self, input_ids: torch.Tensor, src_padding_mask: Optional[torch.BoolTensor] = None
     ):
         """
         Performs one encoder forward pass given input token ids and an optional attention mask.
@@ -72,7 +73,7 @@ class EncoderBlock(nn.Module):
         self.layer_norm1 = nn.LayerNorm(hidden_dim)
         self.layer_norm2 = nn.LayerNorm(hidden_dim)
 
-    def forward(self, x: torch.FloatTensor, src_padding_mask: torch.BoolTensor = None):
+    def forward(self, x: torch.FloatTensor, src_padding_mask: Optional[torch.BoolTensor] = None):
         """
         Performs one encoder *block* forward pass given the previous block's output and an optional attention mask.
 
