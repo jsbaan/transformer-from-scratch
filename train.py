@@ -56,7 +56,7 @@ def train(
             tgt_batch = tgt_batch[:, 1:]
 
             # Set pad tokens in the target to -100 so they don't incur a loss
-            # tgt_batch[tgt_batch == transformer.padding_idx] = -100
+            tgt_batch[tgt_batch == transformer.padding_idx] = -100
 
             # Compute the average cross-entropy loss over all next-token predictions at each index i given [1, ..., i]
             # for the entire batch. Note that the original paper uses label smoothing (I was too lazy).
@@ -76,9 +76,9 @@ def train(
                 )
 
             # Update parameters
+            scheduler.optimizer.zero_grad()
             batch_loss.backward()
             scheduler.step()
-            scheduler.optimizer.zero_grad()
             num_iters += 1
     return batch_loss, batch_accuracy
 
