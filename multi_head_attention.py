@@ -70,7 +70,7 @@ class MultiHeadAttention(nn.Module):
         values, attn = self.scaled_dot_product(q, k, v, src_padding_mask, future_mask)
 
         # Concatenate contextualized value vectors from all heads
-        values = values.reshape(batch_size, sequence_length, hidden_dim)
+        values = values.permute(0, 2, 1, 3).reshape(batch_size, sequence_length, hidden_dim)
 
         # Linearly transform the concatenation of all heads' value vectors (8*64=512) to the original hidden dim (512)
         output = self.o_proj(values)
@@ -207,12 +207,13 @@ class MultiHeadAttention(nn.Module):
         Shape: (T, T).
         :return: masked_logits (N, H, S or T, S or T)
         """
+        masked_logits = logits
         if src_padding_mask is not None:
-            masked_logits = logits.masked_fill(
+            masked_logits = masked_logits.masked_fill(
                 src_padding_mask[:, None, None, :] == 0, float("-inf")
             )
         if future_mask is not None:
-            masked_logits = logits.masked_fill(future_mask == 0, float("-inf"))
+            masked_logits = masked_logits.masked_fill(future_mask == 0, float("-inf"))
         return masked_logits
 
 
