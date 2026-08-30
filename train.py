@@ -53,7 +53,7 @@ def train(
             # Align labels with predictions: the last decoder prediction is meaningless because we have no target token
             # for it. The BOS token in the target is also not something we want to compute a loss for.
             decoder_output = decoder_output[:, :-1, :]
-            tgt_batch = tgt_batch[:, 1:]
+            tgt_batch = tgt_batch[:, 1:].clone()
 
             # Set pad tokens in the target to -100 so they don't incur a loss
             tgt_batch[tgt_batch == transformer.padding_idx] = -100
@@ -65,10 +65,12 @@ def train(
                 tgt_batch.contiguous().long(),
             )
 
-            # Rough estimate of per-token accuracy in the current training batch
+            # Rough estimate of per-token accuracy in the current training batch, ignoring pad tokens
+            num_non_pad_tokens = torch.sum(tgt_batch != -100)
             batch_accuracy = (
                 torch.sum(decoder_output.argmax(dim=-1) == tgt_batch)
-            ) / torch.numel(tgt_batch)
+            ) / num_non_pad_tokens
+
 
             if num_iters % 100 == 0:
                 print(
