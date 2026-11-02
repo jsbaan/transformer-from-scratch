@@ -28,4 +28,4 @@ This repo contains the following files and features:
 - Type checking using [mypy](https://mypy.readthedocs.io/en/stable/). 
 - Code formatting using [black](https://github.com/psf/black).
 - Automatic execution of unit tests and type checks using Github Actions.
-- No dependencies except Python 3.9 and PyTorch 1.9.1 (though basically any version should work).
+- No dependencies except Python 3.12 and PyTorch 2.15 (though basically any version should work).
