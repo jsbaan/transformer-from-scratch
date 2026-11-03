@@ -10,7 +10,7 @@ from torch import nn
 from lr_scheduler import NoamOpt
 from transformer import Transformer
 from vocabulary import Vocabulary
-from utils import construct_batches
+from utils import construct_batches, construct_future_mask
 
 
 def train(
@@ -161,6 +161,117 @@ class TestTransformerTraining(unittest.TestCase):
         )
         self.assertEqual(latest_batch_loss.item() <= 0.01, True)
         self.assertEqual(latest_batch_accuracy >= 0.99, True)
+
+    def test_copy_task_small_cpu(self):
+        """
+        Test training on a small CPU version of the copy task. Unlike test_copy_task, sequences have variable lengths
+        so that padding masks are exercised, and the model is evaluated with greedy decoding on held-out sequences.
+        This also catches future-mask leaks: a leaking decoder can copy its own (teacher-forced) input without using
+        the encoder, which gives a high training accuracy but fails at inference.
+        """
+        seed = 0
+        torch.manual_seed(seed)
+        random.seed(seed)
+        np.random.seed(seed)
+
+        # Hyperparameters
+        synthetic_corpus_size = 600
+        n_test_sequences = 100
+        batch_size = 60
+        n_epochs = 60
+        min_tokens_in_sequence = 3
+        max_tokens_in_sequence = 10
+
+        # Construct vocabulary and create synthetic data by uniform randomly sampling tokens from it
+        vocab = Vocabulary(["These are the tokens that will end up in our vocabulary"])
+        vocab_size = len(list(vocab.token2index.keys()))
+        valid_tokens = list(vocab.token2index.keys())[3:]
+        corpus = [
+            " ".join(
+                choices(
+                    valid_tokens,
+                    k=random.randint(min_tokens_in_sequence, max_tokens_in_sequence),
+                )
+            )
+            for _ in range(synthetic_corpus_size + n_test_sequences)
+        ]
+        train_corpus = corpus[:synthetic_corpus_size]
+        test_corpus = corpus[synthetic_corpus_size:]
+
+        # Construct src-tgt aligned input batches
+        batches, masks = construct_batches(
+            [{"src": sent, "tgt": sent} for sent in train_corpus],
+            vocab,
+            batch_size=batch_size,
+            src_lang_key="src",
+            tgt_lang_key="tgt",
+        )
+
+        # Initialize a small transformer
+        transformer = Transformer(
+            hidden_dim=128,
+            ff_dim=256,
+            num_heads=4,
+            num_layers=2,
+            max_decoding_length=max_tokens_in_sequence + 2,
+            vocab_size=vocab_size,
+            padding_idx=vocab.token2index[vocab.PAD],
+            bos_idx=vocab.token2index[vocab.BOS],
+            dropout_p=0.1,
+            tie_output_to_embedding=True,
+        )
+
+        # Initialize learning rate scheduler, optimizer and loss
+        optimizer = torch.optim.Adam(
+            transformer.parameters(), lr=0, betas=(0.9, 0.98), eps=1e-9
+        )
+        scheduler = NoamOpt(
+            transformer.hidden_dim, factor=1, warmup=400, optimizer=optimizer,
+        )
+        criterion = nn.CrossEntropyLoss()
+
+        # Start training
+        train(transformer, scheduler, criterion, batches, masks, n_epochs=n_epochs)
+
+        # Greedy decoding on the (padded) held-out sequences
+        transformer.eval()
+        with torch.no_grad():
+            src_batch = torch.IntTensor(
+                vocab.batch_encode(test_corpus, add_special_tokens=True, padding=True)
+            )
+            src_padding_mask = src_batch != transformer.padding_idx
+            encoder_output = transformer.encoder(
+                src_batch, src_padding_mask=src_padding_mask
+            )
+
+            # Start with a BOS token and iteratively feed the input+prediction back in
+            decoder_input = torch.full(
+                (len(test_corpus), 1), transformer.bos_idx, dtype=torch.int
+            )
+            for _ in range(src_batch.shape[1] - 1):
+                decoder_output = transformer.decoder(
+                    decoder_input,
+                    encoder_output,
+                    src_padding_mask=src_padding_mask,
+                    future_mask=construct_future_mask(decoder_input.shape[1]),
+                )
+                # Take the argmax over the last token to obtain the next-token prediction
+                predicted_tokens = torch.argmax(
+                    decoder_output[:, -1, :], dim=-1
+                ).unsqueeze(1)
+                decoder_input = torch.cat(
+                    (decoder_input, predicted_tokens.int()), dim=-1
+                )
+
+        # Per-token accuracy of the predictions (excluding BOS) at all non-pad positions of the source
+        targets = src_batch[:, 1:]
+        predictions = decoder_input[:, 1:]
+        non_pad = targets != transformer.padding_idx
+        token_accuracy = torch.sum((predictions == targets) & non_pad) / torch.sum(
+            non_pad
+        )
+        print(f"greedy token accuracy on held-out sequences: {token_accuracy:.3f}")
+        self.assertEqual(token_accuracy >= 0.95, True)
 
 
 if __name__ == "__main__":
